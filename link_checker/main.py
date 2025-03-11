@@ -829,7 +829,8 @@ class LinkChecker:
 
                         # Log progress again if needed for the GET request
                         if self.request_count % 100 == 0:
-                            logging.info(f"Request #{self.request_count}: Checking external URL {ext_url} (GET)")
+                            logging.info(f"Request #{self.request_count}: "
+                                         f"Checking external URL {ext_url} (GET)")
 
                         response = self.session.get(ext_url, timeout=self.timeout, allow_redirects=True,
                                                     stream=True)
@@ -960,9 +961,9 @@ class LinkChecker:
 
         # Add external links summary
         total_external_links = sum(len(links) for links in self.external_links.values())
-        unique_external_links = len(set(link for links in self.external_links.values()
-                                       for link in links))
-        print(f"External links found: {unique_external_links} unique links referenced "
+        num_unique_external_links = len(set(link for links in self.external_links.values()
+                                            for link in links))
+        print(f"External links found: {num_unique_external_links} unique links referenced "
               f"{total_external_links} times")
 
         # Add requests information

@@ -92,7 +92,7 @@ class TestCLI(unittest.TestCase):
             mock_read_list.side_effect = [
                 ["pattern1", "pattern2", "pattern3"],  # asset patterns
                 ["pattern4", "pattern5"],              # internal patterns
-                ["https://example.org", "https://test.com"] # external links
+                ["https://example.org", "https://test.com"]  # external links
             ]
 
             exit_code = main(["example.html",

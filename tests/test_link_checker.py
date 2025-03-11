@@ -311,21 +311,21 @@ class TestLinkChecker(unittest.TestCase):
 
         # Check that assets in ignored paths are tracked in ignored_internal_assets_found
         self.assertIn("https://example.com/images/photo.jpg",
-                     list(checker.ignored_internal_assets_found["https://example.com"].keys()))
+                      list(checker.ignored_internal_assets_found["https://example.com"].keys()))
         self.assertIn("https://example.com/images/logo.png",
-                     list(checker.ignored_internal_assets_found["https://example.com"].keys()))
+                      list(checker.ignored_internal_assets_found["https://example.com"].keys()))
         self.assertIn("https://example.com/css/style.css",
-                     list(checker.ignored_internal_assets_found["https://example.com"].keys()))
+                      list(checker.ignored_internal_assets_found["https://example.com"].keys()))
 
         # Check that non-ignored assets are in internal_assets
         self.assertIn("https://example.com/assets/document.pdf",
-                     list(checker.internal_assets["https://example.com"].keys()))
+                      list(checker.internal_assets["https://example.com"].keys()))
         self.assertIn("https://example.com/assets/banner.jpg",
-                     list(checker.internal_assets["https://example.com"].keys()))
+                      list(checker.internal_assets["https://example.com"].keys()))
         self.assertIn("https://example.com/assets/custom.css",
-                     list(checker.internal_assets["https://example.com"].keys()))
+                      list(checker.internal_assets["https://example.com"].keys()))
         self.assertIn("https://example.com/js/script.js",
-                     list(checker.internal_assets["https://example.com"].keys()))
+                      list(checker.internal_assets["https://example.com"].keys()))
 
     def test_should_not_crawl(self):
         """Test that internal paths that should not be crawled are correctly

@@ -18,6 +18,7 @@ class TestCLI(unittest.TestCase):
         self.assertIsNone(args.output)
         self.assertIsNone(args.log_file)
         self.assertEqual(args.log_level, "DEBUG")
+        self.assertEqual(args.max_threads, 10)  # Check default value
 
         # Test with verbose flag
         args = create_parser().parse_args(["example.html", "-v"])
@@ -39,6 +40,10 @@ class TestCLI(unittest.TestCase):
         args = create_parser().parse_args(["example.html", "--log-level", "WARNING"])
         self.assertEqual(args.log_level, "WARNING")
 
+        # Test with max-threads option
+        args = create_parser().parse_args(["example.html", "--max-threads", "20"])
+        self.assertEqual(args.max_threads, 20)
+
     @patch('link_checker.cli.LinkChecker')
     @patch('link_checker.cli.setup_logging')
     def test_main(self, mock_setup_logging, mock_link_checker_cls):
@@ -59,7 +64,8 @@ class TestCLI(unittest.TestCase):
             ignored_external_links=None,
             timeout=10.0,
             max_requests=None,
-            max_depth=None
+            max_depth=None,
+            max_threads=10
         )
 
         # Check that run was called (which internally calls link_checker and check_assets)
@@ -108,7 +114,8 @@ class TestCLI(unittest.TestCase):
                 ignored_external_links=["https://example.org", "https://test.com"],
                 timeout=10.0,
                 max_requests=None,
-                max_depth=None
+                max_depth=None,
+                max_threads=10
             )
 
         # Check exit code

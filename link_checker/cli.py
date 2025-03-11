@@ -203,6 +203,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Maximum depth to crawl (default: unlimited)."
     )
     parser.add_argument(
+        "--max-threads",
+        type=int,
+        default=10,
+        help="Maximum number of concurrent threads for requests (default: 10)."
+    )
+    parser.add_argument(
         "--ignore-asset-url-file",
         default=None,
         help="URL pattern to ignore for assets. Can be used multiple times."
@@ -288,11 +294,13 @@ def main(args: Optional[List[str]] = None) -> int:
                               ignored_external_links=ignored_external_links,
                               timeout=parsed_args.timeout,
                               max_requests=parsed_args.max_requests,
-                              max_depth=parsed_args.max_depth)
+                              max_depth=parsed_args.max_depth,
+                              max_threads=parsed_args.max_threads)
 
         logging.info(f"Starting link checker with: timeout={parsed_args.timeout}s, "
                      f"max_requests={parsed_args.max_requests}, "
-                     f"max_depth={parsed_args.max_depth}")
+                     f"max_depth={parsed_args.max_depth}, "
+                     f"max_threads={parsed_args.max_threads}")
 
         # Run the link checker
         checker.run()

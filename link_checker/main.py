@@ -5,6 +5,9 @@ import time
 import urllib.parse
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple, Optional
+import concurrent.futures
+import threading
+import queue
 
 import requests
 from bs4 import BeautifulSoup
@@ -23,7 +26,8 @@ class LinkChecker:
                  ignored_external_links: Optional[List[str]] = None,
                  timeout: float = 10.0,
                  max_requests: Optional[int] = None,
-                 max_depth: Optional[int] = None):
+                 max_depth: Optional[int] = None,
+                 max_threads: int = 10):
         """Initialize the link checker with a root URL.
 
         Args:
@@ -34,6 +38,7 @@ class LinkChecker:
             timeout: Timeout in seconds for HTTP requests.
             max_requests: Maximum number of requests to make (None for unlimited).
             max_depth: Maximum depth to crawl (None for unlimited).
+            max_threads: Maximum number of concurrent threads for requests.
         """
         self.root_url = self._normalize_url(root_url)
         self.root_domain = urllib.parse.urlparse(self.root_url).netloc
@@ -47,13 +52,26 @@ class LinkChecker:
         self.timeout = timeout
         self.max_requests = max_requests
         self.max_depth = max_depth
+        self.max_threads = max_threads
         self.request_count = 0
 
         # Store visited URLs to avoid duplicates
         self.visited_urls: Set[str] = set()
 
+        # Thread safety locks
+        self.visited_urls_lock = threading.Lock()
+        self.request_count_lock = threading.Lock()
+        self.broken_links_lock = threading.Lock()
+        self.internal_assets_lock = threading.Lock()
+        self.ignored_internal_assets_lock = threading.Lock()
+        self.external_links_lock = threading.Lock()
+        self.ignored_external_links_lock = threading.Lock()
+        self.counter_lock = threading.Lock()
+
         # Store URLs to visit
         self.urls_to_visit: List[str] = [self.root_url]
+        self.urls_to_visit_queue: queue.Queue = queue.Queue()
+        self.urls_to_visit_queue.put((self.root_url, 0))  # URL and depth
 
         # Store broken links: {url_where_found: {broken_url: status_code}}
         self.broken_links: Dict[str, Dict[str, int]] = defaultdict(dict)
@@ -339,7 +357,8 @@ class LinkChecker:
             if path.startswith(pattern):
                 logger.debug(f"URL '{url}' will not be crawled - matches pattern "
                              f"'{ignored_path}'")
-                self.non_crawled_urls_count += 1
+                with self.counter_lock:
+                    self.non_crawled_urls_count += 1
                 return True
 
         return False
@@ -379,8 +398,7 @@ class LinkChecker:
             html_content: The HTML content of the page.
 
         Returns:
-            A tuple of (links, assets) where links is a list of URLs and
-            assets is a dictionary mapping asset URLs to asset types.
+            A list of links found in the HTML content.
         """
         soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -412,23 +430,31 @@ class LinkChecker:
                     # This is an internal asset
                     if self._should_ignore_asset(absolute_url):
                         # Track ignored internal assets separately
-                        self.ignored_internal_assets_found[url.rstrip('/')][
-                            absolute_url] = asset_type
-                        self.ignored_internal_assets_count += 1
+                        with self.ignored_internal_assets_lock:
+                            self.ignored_internal_assets_found[url.rstrip('/')][
+                                absolute_url] = asset_type
+                        with self.counter_lock:
+                            self.ignored_internal_assets_count += 1
                     else:
                         # Add to internal_assets for reporting
-                        self.internal_assets[url.rstrip('/')][absolute_url] = asset_type
-                        self.internal_assets_count += 1
+                        with self.internal_assets_lock:
+                            self.internal_assets[url.rstrip('/')][absolute_url] = asset_type
+                        with self.counter_lock:
+                            self.internal_assets_count += 1
             else:
                 # This is an external link
                 if self._should_ignore_external_link(absolute_url):
                     # Track ignored external links separately
-                    self.ignored_external_links_found[url.rstrip('/')].add(absolute_url)
-                    self.ignored_external_urls_count += 1
+                    with self.ignored_external_links_lock:
+                        self.ignored_external_links_found[url.rstrip('/')].add(absolute_url)
+                    with self.counter_lock:
+                        self.ignored_external_urls_count += 1
                 else:
                     # Add to external_links for reporting
-                    self.external_links[url.rstrip('/')].add(absolute_url)
-                    self.external_urls_count += 1
+                    with self.external_links_lock:
+                        self.external_links[url.rstrip('/')].add(absolute_url)
+                    with self.counter_lock:
+                        self.external_urls_count += 1
 
         # Extract image sources
         for img_tag in soup.find_all('img', src=True):
@@ -442,13 +468,17 @@ class LinkChecker:
             if self._is_internal_url(absolute_url):
                 if self._should_ignore_asset(absolute_url):
                     # Track ignored internal assets separately
-                    self.ignored_internal_assets_found[url.rstrip('/')][
-                        absolute_url] = 'image'
-                    self.ignored_internal_assets_count += 1
+                    with self.ignored_internal_assets_lock:
+                        self.ignored_internal_assets_found[url.rstrip('/')][
+                            absolute_url] = 'image'
+                    with self.counter_lock:
+                        self.ignored_internal_assets_count += 1
                 else:
                     # Add to internal_assets for reporting
-                    self.internal_assets[url.rstrip('/')][absolute_url] = 'image'
-                    self.internal_assets_count += 1
+                    with self.internal_assets_lock:
+                        self.internal_assets[url.rstrip('/')][absolute_url] = 'image'
+                    with self.counter_lock:
+                        self.internal_assets_count += 1
 
         # Extract CSS links
         for link_tag in soup.find_all('link', rel='stylesheet', href=True):
@@ -462,13 +492,17 @@ class LinkChecker:
             if self._is_internal_url(absolute_url):
                 if self._should_ignore_asset(absolute_url):
                     # Track ignored internal assets separately
-                    self.ignored_internal_assets_found[url.rstrip('/')][
-                        absolute_url] = 'css'
-                    self.ignored_internal_assets_count += 1
+                    with self.ignored_internal_assets_lock:
+                        self.ignored_internal_assets_found[url.rstrip('/')][
+                            absolute_url] = 'css'
+                    with self.counter_lock:
+                        self.ignored_internal_assets_count += 1
                 else:
                     # Add to internal_assets for reporting
-                    self.internal_assets[url.rstrip('/')][absolute_url] = 'css'
-                    self.internal_assets_count += 1
+                    with self.internal_assets_lock:
+                        self.internal_assets[url.rstrip('/')][absolute_url] = 'css'
+                    with self.counter_lock:
+                        self.internal_assets_count += 1
 
         # Extract JavaScript sources
         for script_tag in soup.find_all('script', src=True):
@@ -482,13 +516,17 @@ class LinkChecker:
             if self._is_internal_url(absolute_url):
                 if self._should_ignore_asset(absolute_url):
                     # Track ignored internal assets separately
-                    self.ignored_internal_assets_found[url.rstrip('/')][
-                        absolute_url] = 'javascript'
-                    self.ignored_internal_assets_count += 1
+                    with self.ignored_internal_assets_lock:
+                        self.ignored_internal_assets_found[url.rstrip('/')][
+                            absolute_url] = 'javascript'
+                    with self.counter_lock:
+                        self.ignored_internal_assets_count += 1
                 else:
                     # Add to internal_assets for reporting
-                    self.internal_assets[url.rstrip('/')][absolute_url] = 'javascript'
-                    self.internal_assets_count += 1
+                    with self.internal_assets_lock:
+                        self.internal_assets[url.rstrip('/')][absolute_url] = 'javascript'
+                    with self.counter_lock:
+                        self.internal_assets_count += 1
 
         return links
 
@@ -506,7 +544,8 @@ class LinkChecker:
             logger.debug(f"Checking URL: {url}")
 
             # Always add the URL being checked to the visited set
-            self.visited_urls.add(url)
+            with self.visited_urls_lock:
+                self.visited_urls.add(url)
 
             # Use a timeout to avoid getting stuck
             response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
@@ -530,7 +569,8 @@ class LinkChecker:
                         parsed.query,
                         parsed.fragment
                     ))
-                    self.visited_urls.add(index_url)
+                    with self.visited_urls_lock:
+                        self.visited_urls.add(index_url)
                     logger.debug(f"Also marking {index_url} as visited")
 
                 # If this is an index.html URL
@@ -544,7 +584,8 @@ class LinkChecker:
                         parsed.query,
                         parsed.fragment
                     ))
-                    self.visited_urls.add(dir_url)
+                    with self.visited_urls_lock:
+                        self.visited_urls.add(dir_url)
                     logger.debug(f"Also marking {dir_url} as visited")
 
             # Check if the request was successful (status code 200)
@@ -565,53 +606,75 @@ class LinkChecker:
             return None, None
 
     def link_checker(self) -> None:
-        """Check all links on the website."""
-        # Track URL depths
-        url_depths = {self.root_url: 0}
+        """Check all links on the website using multiple threads."""
+        logger.info(f"Starting link checking with {self.max_threads} threads")
 
-        while self.urls_to_visit:
-            # Check if we've reached the maximum number of requests
-            if self.max_requests is not None and self.request_count >= self.max_requests:
-                logging.warning(f"Reached maximum number of requests ({self.max_requests}). Stopping.")
-                break
+        # Create a semaphore to limit the number of concurrent requests
+        # This ensures we don't exceed max_requests
+        if self.max_requests is not None:
+            request_semaphore = threading.Semaphore(self.max_requests)
+        else:
+            request_semaphore = threading.Semaphore(10000)  # Large value if unlimited
 
-            current_url = self.urls_to_visit.pop(0)
-            current_url_ = current_url.rstrip('/')
-            current_depth = url_depths.get(current_url, 0)
+        # Create a thread pool
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            futures = []
 
-            # Skip if we've reached the maximum depth
-            if self.max_depth is not None and current_depth > self.max_depth:
-                logging.debug(f"Skipping URL at depth {current_depth}: {current_url}")
-                continue
+            # Function to process a URL
+            def process_url(url_depth_tuple):
+                nonlocal futures
 
-            # Skip already visited URLs
-            if current_url in self.visited_urls:
-                continue
+                # Check if we've reached the maximum number of requests
+                with self.request_count_lock:
+                    if self.max_requests is not None and self.request_count >= self.max_requests:
+                        logger.warning(f"Reached maximum number of requests ({self.max_requests}). Stopping.")
+                        return
 
-            # _check_url will add the URL to visited_urls
-            logger.info(f"Visiting: {current_url}")
+                current_url, current_depth = url_depth_tuple
+                current_url_ = current_url.rstrip('/')
 
-            # Log progress every 100 requests (at WARNING level which corresponds to verbosity 1)
-            if self.request_count % 100 == 0:
-                logging.info(f"Request #{self.request_count}: Checking URL {current_url}")
+                # Skip if we've reached the maximum depth
+                if self.max_depth is not None and current_depth > self.max_depth:
+                    logger.debug(f"Skipping URL at depth {current_depth}: {current_url}")
+                    return
 
-            html_content, status_code = self._check_url(current_url)
-            self.request_count += 1
+                # Skip already visited URLs
+                with self.visited_urls_lock:
+                    if current_url in self.visited_urls:
+                        return
 
-            if html_content is None:
-                # If the URL is not accessible, record it as a broken link
-                if status_code not in (200, None):
-                    self.broken_links[current_url_][current_url] = \
-                        status_code if status_code is not None else 0
-                continue
+                # _check_url will add the URL to visited_urls
+                logger.info(f"Visiting: {current_url}")
 
-            # Extract links and assets from the HTML content
-            links = self._extract_links(current_url, html_content)
+                # Log progress every 100 requests (at WARNING level which corresponds to verbosity 1)
+                with self.request_count_lock:
+                    if self.request_count % 100 == 0:
+                        logging.info(f"Request #{self.request_count}: Checking URL {current_url}")
 
-            # Add the extracted links to the URLs to visit (if within allowed hierarchy
-            # and not in ignored_internal_paths)
-            for link in links:
-                if link not in self.visited_urls and link not in self.urls_to_visit:
+                # Acquire semaphore before making the request
+                with request_semaphore:
+                    html_content, status_code = self._check_url(current_url)
+                    with self.request_count_lock:
+                        self.request_count += 1
+
+                if html_content is None:
+                    # If the URL is not accessible, record it as a broken link
+                    if status_code not in (200, None):
+                        with self.broken_links_lock:
+                            self.broken_links[current_url_][current_url] = \
+                                status_code if status_code is not None else 0
+                    return
+
+                # Extract links and assets from the HTML content
+                links = self._extract_links(current_url, html_content)
+
+                # Add the extracted links to the URLs to visit (if within allowed hierarchy
+                # and not in ignored_internal_paths)
+                for link in links:
+                    with self.visited_urls_lock:
+                        if link in self.visited_urls:
+                            continue
+
                     # Check what type of URL this is
                     url_category = self._categorize_url(link)
 
@@ -621,47 +684,102 @@ class LinkChecker:
                     elif url_category == 'above_root':
                         # It's above the root on the same host - check it but don't crawl
                         logging.debug(f"URL '{link}' is above the root - checking existence only")
-                        self.above_root_urls_count += 1
+                        with self.counter_lock:
+                            self.above_root_urls_count += 1
 
                         # Check if the URL exists to report broken links
-                        if self.request_count % 100 == 0:
-                            logging.info(f"Request #{self.request_count}: Checking URL {link}")
+                        with self.request_count_lock:
+                            if self.request_count % 100 == 0:
+                                logging.info(f"Request #{self.request_count}: Checking URL {link}")
 
-                        check_status = self._check_url(link)
-                        self.request_count += 1
-                        if check_status[1] not in (200, None):
-                            logging.error(f"Broken link above root hierarchy: "
-                                          f"{link} (Status: {check_status[1]})")
-                            self.broken_links[current_url_][link] = \
-                                check_status[1] if check_status[1] is not None else 0
+                        # Submit a task to check this URL
+                        check_future = executor.submit(self._check_url_and_record_broken,
+                                                       link, current_url_, request_semaphore)
+                        futures.append(check_future)
                     elif url_category == 'allowed':
                         # Only add link to urls_to_visit if it shouldn't be ignored for crawling
                         if not self._should_not_crawl(link):
-                            self.urls_to_visit.append(link)
-                            # Track the depth of this URL
-                            url_depths[link] = current_depth + 1
+                            # Add to queue with depth increased by 1
+                            self.urls_to_visit_queue.put((link, current_depth + 1))
                             logging.debug(f"Added to crawl queue: {link} "
                                           f"(depth: {current_depth + 1})")
                         else:
                             # For URLs in ignored_internal_paths, check them but don't crawl
                             logging.debug(f"URL '{link}' matches ignored internal path - "
                                           "checking existence only, will not crawl further")
-                            # We still need to check the URL to ensure it exists
-                            if self.request_count % 100 == 0:
-                                logging.info(f"Request #{self.request_count}: Checking URL {link}")
 
-                            check_status = self._check_url(link)
-                            self.request_count += 1
-                            if check_status[1] not in (200, None):
-                                logging.error(f"Broken link in non-crawled section: {link} "
-                                              f"(Status: {check_status[1]})")
-                                self.broken_links[current_url_][link] = \
-                                    check_status[1] if check_status[1] is not None else 0
-                            else:
-                                logging.debug(f"Non-crawled link exists: {link}")
+                            # Submit a task to check this URL
+                            check_future = executor.submit(self._check_url_and_record_broken,
+                                                           link, current_url_, request_semaphore)
+                            futures.append(check_future)
 
-            # Add a small delay to avoid overwhelming the server
-            time.sleep(0.1)
+            # Submit initial URL
+            initial_future = executor.submit(process_url, (self.root_url, 0))
+            futures.append(initial_future)
+
+            # Process URLs as they are added to the queue
+            while futures or not self.urls_to_visit_queue.empty():
+                # Check for completed futures to free up threads
+                done_futures = []
+                for future in futures:
+                    if future.done():
+                        done_futures.append(future)
+                        # Handle any exceptions
+                        try:
+                            future.result()  # This will re-raise any exceptions
+                        except Exception as e:
+                            logger.error(f"Error in thread: {str(e)}")
+
+                # Remove completed futures
+                for future in done_futures:
+                    futures.remove(future)
+
+                # Submit more tasks if queue is not empty and we haven't reached max_requests
+                with self.request_count_lock:
+                    requests_available = self.max_requests is None or self.request_count < self.max_requests
+
+                if requests_available and not self.urls_to_visit_queue.empty():
+                    try:
+                        # Get next URL from queue (non-blocking)
+                        url_depth = self.urls_to_visit_queue.get_nowait()
+                        # Submit new task
+                        new_future = executor.submit(process_url, url_depth)
+                        futures.append(new_future)
+                    except queue.Empty:
+                        # Queue was empty, just continue
+                        pass
+
+                # Short sleep to avoid busy waiting
+                time.sleep(0.01)
+
+            # Wait for all futures to complete
+            concurrent.futures.wait(futures)
+
+    def _check_url_and_record_broken(self, url: str, referring_url: str, semaphore) -> None:
+        """Check a URL and record it as broken if necessary.
+
+        This is a helper method for the threaded link_checker to check URLs
+        that shouldn't be crawled further.
+
+        Args:
+            url: The URL to check.
+            referring_url: The URL that referred to this URL.
+            semaphore: Semaphore to limit concurrent requests.
+        """
+        with semaphore:
+            check_status = self._check_url(url)
+            with self.request_count_lock:
+                self.request_count += 1
+                if self.request_count % 100 == 0:
+                    logging.info(f"Request #{self.request_count}: Checking URL {url}")
+
+        if check_status[1] not in (200, None):
+            logging.error(f"Broken link: {url} (Status: {check_status[1]})")
+            with self.broken_links_lock:
+                self.broken_links[referring_url][url] = \
+                    check_status[1] if check_status[1] is not None else 0
+        else:
+            logging.debug(f"Link exists: {url}")
 
     def _categorize_url(self, url: str) -> str:
         """Categorize a URL as 'allowed', 'above_root', or 'external'.
@@ -706,7 +824,7 @@ class LinkChecker:
         return 'above_root'
 
     def check_assets(self) -> None:
-        """Check if the internal assets are accessible."""
+        """Check if the internal assets are accessible using multiple threads."""
         logger.info("Checking internal assets...")
 
         # Collect all unique asset URLs
@@ -722,68 +840,87 @@ class LinkChecker:
 
         logger.info(f"Found {len(all_assets)} unique assets to check")
 
-        # Check each asset
-        for asset_url in all_assets:
-            try:
-                if asset_url in self.visited_urls:
-                    continue
+        # Create a semaphore to limit the number of concurrent requests
+        # This ensures we don't exceed max_requests
+        if self.max_requests is not None:
+            request_semaphore = threading.Semaphore(self.max_requests)
+        else:
+            request_semaphore = threading.Semaphore(10000)  # Large value if unlimited
 
-                self.visited_urls.add(asset_url)
-
+        # Create a thread pool
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            # Function to check a single asset
+            def check_asset(asset_url):
                 try:
-                    logging.debug(f"Checking asset: {asset_url}")
+                    with self.visited_urls_lock:
+                        if asset_url in self.visited_urls:
+                            return
+                        self.visited_urls.add(asset_url)
 
-                    # Log progress every 100 requests (at WARNING level which corresponds to verbosity 1)
-                    if self.request_count % 100 == 0:
-                        logging.info(f"Request #{self.request_count}: Checking asset {asset_url}")
+                    try:
+                        logging.debug(f"Checking asset: {asset_url}")
 
-                    response = self.session.head(asset_url, timeout=self.timeout)
-                    status_code = response.status_code
-                    self.request_count += 1
+                        # Log progress every 100 requests (at WARNING level which corresponds to verbosity 1)
+                        with self.request_count_lock:
+                            if self.request_count % 100 == 0:
+                                logging.info(f"Request #{self.request_count}: Checking asset {asset_url}")
 
-                    if status_code != 200:
-                        logging.warning(f"Asset not accessible: {asset_url} "
-                                        f"(Status: {status_code})")
+                        # Use semaphore to limit concurrent requests
+                        with request_semaphore:
+                            response = self.session.head(asset_url, timeout=self.timeout)
+                            status_code = response.status_code
+                            with self.request_count_lock:
+                                self.request_count += 1
 
-                        # Find all pages that reference this asset
-                        for page_url, assets in self.internal_assets.items():
-                            if asset_url in assets:
-                                self.broken_links[page_url.rstrip('/')][asset_url] = status_code
+                        if status_code != 200:
+                            logging.warning(f"Asset not accessible: {asset_url} "
+                                            f"(Status: {status_code})")
 
-                        # Also check ignored internal assets and record them as broken
-                        for page_url, assets in self.ignored_internal_assets_found.items():
-                            if asset_url in assets:
-                                self.broken_links[page_url.rstrip('/')][asset_url] = status_code
+                            # Find all pages that reference this asset
+                            with self.broken_links_lock:
+                                # Regular assets
+                                for page_url, assets in self.internal_assets.items():
+                                    if asset_url in assets:
+                                        self.broken_links[page_url.rstrip('/')][asset_url] = status_code
 
-                except requests.RequestException as e:
-                    logger.error(f"Error accessing asset {asset_url}: {str(e)}")
+                                # Ignored assets
+                                for page_url, assets in self.ignored_internal_assets_found.items():
+                                    if asset_url in assets:
+                                        self.broken_links[page_url.rstrip('/')][asset_url] = status_code
 
-                    # Find all pages that reference this asset
-                    for page_url, assets in self.internal_assets.items():
-                        if asset_url in assets:
-                            self.broken_links[page_url.rstrip('/')][asset_url] = 0
+                    except requests.RequestException as e:
+                        logger.error(f"Error accessing asset {asset_url}: {str(e)}")
 
-                    # Also check ignored internal assets and record them as broken
-                    for page_url, assets in self.ignored_internal_assets_found.items():
-                        if asset_url in assets:
-                            self.broken_links[page_url.rstrip('/')][asset_url] = 0
+                        with self.broken_links_lock:
+                            # Find all pages that reference this asset
+                            # Regular assets
+                            for page_url, assets in self.internal_assets.items():
+                                if asset_url in assets:
+                                    self.broken_links[page_url.rstrip('/')][asset_url] = 0
 
-                    # Add a small delay to avoid overwhelming the server
-                    time.sleep(0.1)
+                            # Ignored assets
+                            for page_url, assets in self.ignored_internal_assets_found.items():
+                                if asset_url in assets:
+                                    self.broken_links[page_url.rstrip('/')][asset_url] = 0
 
-            except requests.RequestException as e:
-                logger.error(f"Error accessing asset {asset_url}: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Unexpected error checking asset {asset_url}: {str(e)}")
 
-                # Find all pages that reference this asset
-                for page_url, assets in self.internal_assets.items():
-                    if asset_url in assets:
-                        self.broken_links[page_url.rstrip('/')][asset_url] = 0
+            # Submit all assets to the thread pool
+            futures = [executor.submit(check_asset, asset_url) for asset_url in all_assets]
+
+            # Wait for all futures to complete
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # This will re-raise any exceptions
+                except Exception as e:
+                    logger.error(f"Error in asset checking thread: {str(e)}")
 
                 # Add a small delay to avoid overwhelming the server
-                time.sleep(0.1)
+                time.sleep(0.01)
 
     def check_external_links(self) -> None:
-        """Check if the external links are accessible.
+        """Check if the external links are accessible using multiple threads.
 
         Both regular external links and ignored external links are checked,
         though ignored ones won't appear in reports.
@@ -803,72 +940,106 @@ class LinkChecker:
 
         logger.info(f"Found {len(all_external_urls)} unique external URLs to check")
 
-        # Check each external URL
-        for ext_url in all_external_urls:
-            try:
-                if ext_url in self.visited_urls:
-                    continue
+        # Create a semaphore to limit the number of concurrent requests
+        # This ensures we don't exceed max_requests
+        if self.max_requests is not None:
+            request_semaphore = threading.Semaphore(self.max_requests)
+        else:
+            request_semaphore = threading.Semaphore(10000)  # Large value if unlimited
 
-                self.visited_urls.add(ext_url)
-
+        # Create a thread pool with a lower number of workers for external links
+        # to avoid overwhelming external servers
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(self.max_threads, 5)) as executor:
+            # Function to check a single external URL
+            def check_external_url(ext_url):
                 try:
-                    logging.debug(f"Checking external URL: {ext_url}")
+                    with self.visited_urls_lock:
+                        if ext_url in self.visited_urls:
+                            return
+                        self.visited_urls.add(ext_url)
 
-                    # Log progress every 100 requests (at WARNING level which corresponds to verbosity 1)
-                    if self.request_count % 100 == 0:
-                        logging.info(f"Request #{self.request_count}: Checking external URL {ext_url}")
+                    try:
+                        logging.debug(f"Checking external URL: {ext_url}")
 
-                    # Use a HEAD request first for efficiency
-                    response = self.session.head(ext_url, timeout=self.timeout, allow_redirects=True)
-                    status_code = response.status_code
-                    self.request_count += 1
+                        # Log progress every 100 requests (at WARNING level which corresponds to verbosity 1)
+                        with self.request_count_lock:
+                            if self.request_count % 100 == 0:
+                                logging.info(f"Request #{self.request_count}: Checking external "
+                                             f"URL {ext_url}")
 
-                    # If we get a method not allowed error, try with GET instead
-                    if status_code == 405:
-                        logging.debug(f"HEAD request not allowed for {ext_url}, trying GET")
+                        # Use semaphore to limit concurrent requests
+                        with request_semaphore:
+                            # Use a HEAD request first for efficiency
+                            response = self.session.head(ext_url, timeout=self.timeout, allow_redirects=True)
+                            status_code = response.status_code
+                            with self.request_count_lock:
+                                self.request_count += 1
 
-                        # Log progress again if needed for the GET request
-                        if self.request_count % 100 == 0:
-                            logging.info(f"Request #{self.request_count}: "
-                                         f"Checking external URL {ext_url} (GET)")
+                        # If we get a method not allowed error, try with GET instead
+                        if status_code == 405:
+                            logging.debug(f"HEAD request not allowed for {ext_url}, trying GET")
 
-                        response = self.session.get(ext_url, timeout=self.timeout, allow_redirects=True,
-                                                    stream=True)
-                        # Close the connection to avoid reading the whole content
-                        response.close()
-                        status_code = response.status_code
-                        self.request_count += 1
+                            # Log progress again if needed for the GET request
+                            with self.request_count_lock:
+                                if self.request_count % 100 == 0:
+                                    logging.info(f"Request #{self.request_count}: Checking external "
+                                                 f"URL {ext_url} (GET)")
 
-                    if status_code >= 400:
-                        logging.warning(f"External link not accessible: {ext_url} (Status: {status_code})")
+                            # Use semaphore for GET request too
+                            with request_semaphore:
+                                response = self.session.get(ext_url, timeout=self.timeout,
+                                                            allow_redirects=True, stream=True)
+                                # Close the connection to avoid reading the whole content
+                                response.close()
+                                status_code = response.status_code
+                                with self.request_count_lock:
+                                    self.request_count += 1
 
-                        # Find all pages that reference this external URL and record the broken link
-                        for page_url, links in self.external_links.items():
-                            if ext_url in links:
-                                self.broken_links[page_url][ext_url] = status_code
+                        if status_code >= 400:
+                            logging.warning(f"External link not accessible: {ext_url} "
+                                            f"(Status: {status_code})")
 
-                        # Also check ignored external links and record them as broken
-                        for page_url, links in self.ignored_external_links_found.items():
-                            if ext_url in links:
-                                self.broken_links[page_url][ext_url] = status_code
+                            # Find all pages that reference this external URL and record the broken link
+                            with self.broken_links_lock:
+                                # Regular external links
+                                for page_url, links in self.external_links.items():
+                                    if ext_url in links:
+                                        self.broken_links[page_url][ext_url] = status_code
 
-                except requests.RequestException as e:
-                    logger.error(f"Error accessing external URL {ext_url}: {str(e)}")
+                                # Ignored external links
+                                for page_url, links in self.ignored_external_links_found.items():
+                                    if ext_url in links:
+                                        self.broken_links[page_url][ext_url] = status_code
 
-                    # Record the error for both regular and ignored external links
-                    for page_url, links in self.external_links.items():
-                        if ext_url in links:
-                            self.broken_links[page_url][ext_url] = 0
+                    except requests.RequestException as e:
+                        logger.error(f"Error accessing external URL {ext_url}: {str(e)}")
 
-                    for page_url, links in self.ignored_external_links_found.items():
-                        if ext_url in links:
-                            self.broken_links[page_url][ext_url] = 0
+                        with self.broken_links_lock:
+                            # Record the error for regular external links
+                            for page_url, links in self.external_links.items():
+                                if ext_url in links:
+                                    self.broken_links[page_url][ext_url] = 0
 
-                # Add a small delay to avoid overwhelming external servers
-                time.sleep(0.2)
+                            # Record the error for ignored external links
+                            for page_url, links in self.ignored_external_links_found.items():
+                                if ext_url in links:
+                                    self.broken_links[page_url][ext_url] = 0
 
-            except Exception as e:
-                logger.error(f"Unexpected error checking external URL {ext_url}: {str(e)}")
+                    # Add a small delay to avoid overwhelming external servers
+                    time.sleep(0.2)
+
+                except Exception as e:
+                    logger.error(f"Unexpected error checking external URL {ext_url}: {str(e)}")
+
+            # Submit all external URLs to the thread pool
+            futures = [executor.submit(check_external_url, ext_url) for ext_url in all_external_urls]
+
+            # Wait for all futures to complete
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # This will re-raise any exceptions
+                except Exception as e:
+                    logger.error(f"Error in external link checking thread: {str(e)}")
 
         logger.info(f"Finished checking {len(all_external_urls)} external URLs")
 
@@ -880,6 +1051,7 @@ class LinkChecker:
         print(f"Timeout: {self.timeout} seconds")
         print(f"Max requests: {'unlimited' if self.max_requests is None else self.max_requests}")
         print(f"Max depth: {'unlimited' if self.max_depth is None else self.max_depth}")
+        print(f"Max threads: {self.max_threads}")
 
         # Print ignored asset paths
         if self.ignored_asset_paths:
@@ -1011,7 +1183,8 @@ def link_checker(url: str,
                  ignored_external_links: Optional[List[str]] = None,
                  timeout: float = 10.0,
                  max_requests: Optional[int] = None,
-                 max_depth: Optional[int] = None
+                 max_depth: Optional[int] = None,
+                 max_threads: int = 10
                  ) -> Tuple[Dict[str, Dict[str, int]],
                             Dict[str, Dict[str, str]]]:
     """Check links on a website and return the results.
@@ -1024,11 +1197,13 @@ def link_checker(url: str,
         timeout: Timeout in seconds for HTTP requests.
         max_requests: Maximum number of requests to make (None for unlimited).
         max_depth: Maximum depth to crawl (None for unlimited).
+        max_threads: Maximum number of concurrent threads for requests (default: 10).
 
     Returns:
         A tuple of (broken_links, internal_assets).
     """
     checker = LinkChecker(url, ignored_asset_paths, ignored_internal_paths,
                           ignored_external_links, timeout=timeout,
-                          max_requests=max_requests, max_depth=max_depth)
+                          max_requests=max_requests, max_depth=max_depth,
+                          max_threads=max_threads)
     return checker.run()

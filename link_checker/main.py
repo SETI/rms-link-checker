@@ -497,7 +497,8 @@ class LinkChecker:
         while self.urls_to_visit:
             # Check if we've reached the maximum number of requests
             if self.max_requests is not None and self.request_count >= self.max_requests:
-                logging.warning(f"Reached maximum number of requests ({self.max_requests}). Stopping.")
+                logging.warning("Reached maximum number of requests "
+                                f"({self.max_requests}). Stopping.")
                 break
 
             current_url = self.urls_to_visit.pop(0)
@@ -654,7 +655,8 @@ class LinkChecker:
         print("=== CONFIGURATION ===")
         print(f"Root URL: {self.root_url}")
         print(f"Timeout: {self.timeout} seconds")
-        print(f"Max requests: {'unlimited' if self.max_requests is None else self.max_requests}")
+        print("Max requests: "
+              f"{'unlimited' if self.max_requests is None else self.max_requests}")
         print(f"Max depth: {'unlimited' if self.max_depth is None else self.max_depth}")
 
         # Print ignored asset paths
@@ -715,8 +717,8 @@ class LinkChecker:
         print(f"\nRequests made: {self.request_count} " +
               f"(max: {'unlimited' if self.max_requests is None else self.max_requests})")
         if (self.max_requests is not None and
-            hasattr(self, 'request_count') and
-            self.request_count >= self.max_requests):
+                hasattr(self, 'request_count') and
+                self.request_count >= self.max_requests):
             print("Request limit reached - crawl was incomplete")
 
         # Add summary of ignored items if applicable

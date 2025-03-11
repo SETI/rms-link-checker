@@ -74,8 +74,10 @@ link_checker https://example.com
 - `--timeout`: Timeout in seconds for HTTP requests (default: 10.0)
 - `--max-requests`: Maximum number of requests to make (default: unlimited)
 - `--max-depth`: Maximum depth to crawl (default: unlimited)
+- `--max-threads`: Maximum number of concurrent threads for requests (default: 10)
 - `--ignore-asset-paths-file`: Specify a file containing paths to ignore when reporting internal assets (one per line)
 - `--ignore-internal-paths-file`: Specify a file containing paths to check once but not crawl (one per line)
+- `--ignore-external-links-file`: Specify a file containing external links to ignore in reporting (one per line)
 
 ### Examples
 
@@ -131,6 +133,16 @@ link_checker https://example.com --max-depth=3 --timeout=30.0
 Limit the number of requests to avoid overwhelming the server:
 ```bash
 link_checker https://example.com --max-requests=50
+```
+
+Control the number of concurrent threads for faster checking on a powerful system:
+```bash
+link_checker https://example.com --max-threads=20
+```
+
+Or reduce threads to be more gentle on the server:
+```bash
+link_checker https://example.com --max-threads=4
 ```
 
 ### Report Format

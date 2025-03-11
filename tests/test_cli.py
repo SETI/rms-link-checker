@@ -54,7 +54,12 @@ class TestCLI(unittest.TestCase):
         mock_setup_logging.assert_called_once()
 
         # Check that LinkChecker was created with the right arguments
-        mock_link_checker_cls.assert_called_once_with("example.html", [], [])
+        mock_link_checker_cls.assert_called_once_with(
+            "example.html", [], [],
+            timeout=10.0,
+            max_requests=None,
+            max_depth=None
+        )
 
         # Check that check_links and check_assets were called
         mock_link_checker.link_checker.assert_called_once()
@@ -96,7 +101,11 @@ class TestCLI(unittest.TestCase):
             # Check that LinkChecker was created with the right ignored URLs
             mock_link_checker_cls.assert_called_once_with(
                 "example.html", ["pattern1", "pattern2", "pattern3"],
-                ["pattern4", "pattern5"])
+                ["pattern4", "pattern5"],
+                timeout=10.0,
+                max_requests=None,
+                max_depth=None
+            )
 
         # Check exit code
         self.assertEqual(exit_code, 0)

@@ -193,14 +193,14 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-requests",
         type=int,
-        default=100,
-        help="Maximum number of requests to make."
+        default=None,
+        help="Maximum number of requests to make (default: unlimited)."
     )
     parser.add_argument(
         "--max-depth",
         type=int,
-        default=2,
-        help="Maximum depth to crawl."
+        default=None,
+        help="Maximum depth to crawl (default: unlimited)."
     )
     parser.add_argument(
         "--ignore-asset-url-file",
@@ -250,7 +250,14 @@ def main(args: Optional[List[str]] = None) -> int:
         # Create a link checker
         checker = LinkChecker(parsed_args.root_url,
                               ignored_asset_paths,
-                              ignored_internal_paths)
+                              ignored_internal_paths,
+                              timeout=parsed_args.timeout,
+                              max_requests=parsed_args.max_requests,
+                              max_depth=parsed_args.max_depth)
+
+        logging.info(f"Starting link checker with: timeout={parsed_args.timeout}s, "
+                     f"max_requests={parsed_args.max_requests}, "
+                     f"max_depth={parsed_args.max_depth}")
 
         # Run the link checker
         try:

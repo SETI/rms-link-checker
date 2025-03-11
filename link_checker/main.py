@@ -19,13 +19,19 @@ class LinkChecker:
     def __init__(self,
                  root_url: str,
                  ignored_asset_paths: Optional[List[str]] = None,
-                 ignored_internal_paths: Optional[List[str]] = None):
+                 ignored_internal_paths: Optional[List[str]] = None,
+                 timeout: float = 10.0,
+                 max_requests: Optional[int] = None,
+                 max_depth: Optional[int] = None):
         """Initialize the link checker with a root URL.
 
         Args:
             root_url: The URL of the website to check.
             ignored_asset_paths: List of paths to ignore when logging internal assets.
             ignored_internal_paths: List of paths to check once but not crawl further.
+            timeout: Timeout in seconds for HTTP requests.
+            max_requests: Maximum number of requests to make (None for unlimited).
+            max_depth: Maximum depth to crawl (None for unlimited).
         """
         self.root_url = self._normalize_url(root_url)
         self.root_domain = urllib.parse.urlparse(self.root_url).netloc
@@ -33,6 +39,12 @@ class LinkChecker:
         # Store ignored paths
         self.ignored_asset_paths = ignored_asset_paths or []
         self.ignored_internal_paths = ignored_internal_paths or []
+
+        # Store request limits
+        self.timeout = timeout
+        self.max_requests = max_requests
+        self.max_depth = max_depth
+        self.request_count = 0
 
         # Store visited URLs to avoid duplicates
         self.visited_urls: Set[str] = set()
@@ -420,7 +432,7 @@ class LinkChecker:
             self.visited_urls.add(url)
 
             # Use a timeout to avoid getting stuck
-            response = self.session.get(url, timeout=10, allow_redirects=True)
+            response = self.session.get(url, timeout=self.timeout, allow_redirects=True)
             status_code = response.status_code
 
             # If this is a URL without an extension that redirects to index.html or has
@@ -479,81 +491,94 @@ class LinkChecker:
         """Check all links on the website."""
         # Add counter for URLs outside allowed hierarchy
         self.urls_outside_hierarchy_count = 0
+        # Track URL depths
+        url_depths = {self.root_url: 0}
 
         while self.urls_to_visit:
-            try:
-                current_url = self.urls_to_visit.pop(0)
+            # Check if we've reached the maximum number of requests
+            if self.max_requests is not None and self.request_count >= self.max_requests:
+                logging.warning(f"Reached maximum number of requests ({self.max_requests}). Stopping.")
+                break
 
-                # Skip already visited URLs
-                if current_url in self.visited_urls:
-                    continue
+            current_url = self.urls_to_visit.pop(0)
+            current_depth = url_depths.get(current_url, 0)
 
-                # _check_url will add the URL to visited_urls
-                logger.info(f"Visiting: {current_url}")
-                html_content, status_code = self._check_url(current_url)
+            # Skip if we've reached the maximum depth
+            if self.max_depth is not None and current_depth > self.max_depth:
+                logging.debug(f"Skipping URL at depth {current_depth}: {current_url}")
+                continue
 
-                if html_content is None:
-                    # If the URL is not accessible, record it as a broken link
-                    if status_code not in (200, None):
-                        self.broken_links[current_url][current_url] = \
-                            status_code if status_code is not None else 0
-                    continue
+            # Skip already visited URLs
+            if current_url in self.visited_urls:
+                continue
 
-                # Extract links and assets from the HTML content
-                links, assets = self._extract_links(current_url, html_content)
+            # _check_url will add the URL to visited_urls
+            logger.info(f"Visiting: {current_url}")
+            html_content, status_code = self._check_url(current_url)
+            self.request_count += 1
 
-                # Add the extracted links to the URLs to visit (if within allowed
-                # hierarchy and not in ignored_internal_paths)
-                for link in links:
-                    if link not in self.visited_urls and link not in self.urls_to_visit:
-                        # First check if the URL is within the allowed hierarchy
-                        if not self._is_within_allowed_hierarchy(link):
-                            logger.debug(f"Not crawling URL '{link}' - outside allowed "
-                                         f"hierarchy from root '{self.root_url}'")
-                            self.urls_outside_hierarchy_count += 1
+            if html_content is None:
+                # If the URL is not accessible, record it as a broken link
+                if status_code not in (200, None):
+                    self.broken_links[current_url][current_url] = \
+                        status_code if status_code is not None else 0
+                continue
 
-                            # We still check if the URL exists to report broken links
-                            check_status = self._check_url(link)
-                            if check_status[1] not in (200, None):
-                                logger.error("Broken link outside allowed hierarchy: "
-                                             f"{link} (Status: {check_status[1]})")
-                                self.broken_links[current_url][link] = \
-                                    check_status[1] if check_status[1] is not None else 0
+            # Extract links and assets from the HTML content
+            links, assets = self._extract_links(current_url, html_content)
 
-                            # No need to mark as visited, _check_url already did that
-                            continue
+            # Add the extracted links to the URLs to visit (if within allowed hierarchy
+            # and not in ignored_internal_paths)
+            for link in links:
+                if link not in self.visited_urls and link not in self.urls_to_visit:
+                    # First check if the URL is within the allowed hierarchy
+                    if not self._is_within_allowed_hierarchy(link):
+                        logging.debug(f"Not crawling URL '{link}' - outside allowed "
+                                      f"hierarchy from root '{self.root_url}'")
+                        self.urls_outside_hierarchy_count += 1
 
-                        # Only add link to urls_to_visit if it shouldn't be ignored for
-                        # crawling
-                        if not self._should_not_crawl(link):
-                            self.urls_to_visit.append(link)
-                            logger.debug(f"Added to crawl queue: {link}")
+                        # We still check if the URL exists to report broken links
+                        check_status = self._check_url(link)
+                        self.request_count += 1
+                        if check_status[1] not in (200, None):
+                            logging.error("Broken link outside allowed hierarchy: "
+                                          f"{link} (Status: {check_status[1]})")
+                            self.broken_links[current_url][link] = \
+                                check_status[1] if check_status[1] is not None else 0
+
+                        # No need to mark as visited, _check_url already did that
+                        continue
+
+                    # Only add link to urls_to_visit if it shouldn't be ignored for
+                    # crawling
+                    if not self._should_not_crawl(link):
+                        self.urls_to_visit.append(link)
+                        # Track the depth of this URL
+                        url_depths[link] = current_depth + 1
+                        logging.debug(f"Added to crawl queue: {link} "
+                                      f"(depth: {current_depth + 1})")
+                    else:
+                        # For URLs in ignored_internal_paths, check them but don't crawl
+                        logging.debug(f"URL '{link}' matches ignored internal path - "
+                                      "checking existence only, will not crawl further")
+                        # We still need to check the URL to ensure it exists
+                        check_status = self._check_url(link)
+                        self.request_count += 1
+                        if check_status[1] not in (200, None):
+                            logging.error(f"Broken link in non-crawled section: {link} "
+                                          f"(Status: {check_status[1]})")
+                            self.broken_links[current_url][link] = \
+                                check_status[1] if check_status[1] is not None else 0
                         else:
-                            # For URLs in ignored_internal_paths, check them but don't
-                            # crawl
-                            logger.debug(f"URL '{link}' matches ignored internal path - "
-                                         "checking existence only, will not crawl "
-                                         "further")
-                            # We still need to check the URL to ensure it exists
-                            check_status = self._check_url(link)
-                            if check_status[1] not in (200, None):
-                                logger.error(f"Broken link in non-crawled section: {link}"
-                                             f"(Status: {check_status[1]})")
-                                self.broken_links[current_url][link] = \
-                                    check_status[1] if check_status[1] is not None else 0
-                            else:
-                                logger.debug(f"Non-crawled link exists: {link}")
-                            # No need to mark as visited, _check_url already did that
+                            logging.debug(f"Non-crawled link exists: {link}")
+                        # No need to mark as visited, _check_url already did that
 
-                # Add the extracted assets to the internal assets
-                for asset_url, asset_type in assets.items():
-                    self.internal_assets[current_url.rstrip('/')][asset_url] = asset_type
+            # Add the extracted assets to the internal assets
+            for asset_url, asset_type in assets.items():
+                self.internal_assets[current_url.rstrip('/')][asset_url] = asset_type
 
-                # Add a small delay to avoid overwhelming the server
-                time.sleep(0.1)
-
-            except Exception as e:
-                logger.error(f"Unexpected error processing {current_url}: {str(e)}")
+            # Add a small delay to avoid overwhelming the server
+            time.sleep(0.1)
 
     def check_assets(self) -> None:
         """Check if the internal assets are accessible."""
@@ -572,19 +597,31 @@ class LinkChecker:
 
                 self.visited_urls.add(asset_url)
 
-                logger.debug(f"Checking asset: {asset_url}")
+                try:
+                    logging.debug(f"Checking asset: {asset_url}")
 
-                response = self.session.head(asset_url, timeout=10)
-                status_code = response.status_code
+                    response = self.session.head(asset_url, timeout=self.timeout)
+                    status_code = response.status_code
 
-                if status_code != 200:
-                    logger.warning(f"Asset not accessible: {asset_url} "
-                                   f"(Status: {status_code})")
+                    if status_code != 200:
+                        logging.warning(f"Asset not accessible: {asset_url} "
+                                        f"(Status: {status_code})")
+
+                        # Find all pages that reference this asset
+                        for page_url, assets in self.internal_assets.items():
+                            if asset_url in assets:
+                                self.broken_links[page_url][asset_url] = status_code
+
+                except requests.RequestException as e:
+                    logger.error(f"Error accessing asset {asset_url}: {str(e)}")
 
                     # Find all pages that reference this asset
                     for page_url, assets in self.internal_assets.items():
                         if asset_url in assets:
-                            self.broken_links[page_url][asset_url] = status_code
+                            self.broken_links[page_url][asset_url] = 0
+
+                    # Add a small delay to avoid overwhelming the server
+                    time.sleep(0.1)
 
             except requests.RequestException as e:
                 logger.error(f"Error accessing asset {asset_url}: {str(e)}")
@@ -616,6 +653,9 @@ class LinkChecker:
         # Print configuration
         print("=== CONFIGURATION ===")
         print(f"Root URL: {self.root_url}")
+        print(f"Timeout: {self.timeout} seconds")
+        print(f"Max requests: {'unlimited' if self.max_requests is None else self.max_requests}")
+        print(f"Max depth: {'unlimited' if self.max_depth is None else self.max_depth}")
 
         # Print ignored asset paths
         if self.ignored_asset_paths:
@@ -662,14 +702,22 @@ class LinkChecker:
         # Print summary
         print("\n=== SUMMARY ===")
         print(f"Total pages visited: {len(self.visited_urls)}")
-        print(f"Broken links found: {sum(len(links)
-              for links in self.broken_links.values())}")
+        print("Broken links found: "
+              f"{sum(len(links) for links in self.broken_links.values())}")
 
         asset_count = sum(len(assets) for assets in self.internal_assets.values())
         unique_asset_count = len({url for assets in self.internal_assets.values()
-                                  for url in assets})
+                                 for url in assets})
         print(f"Internal assets found: {unique_asset_count} unique assets referenced "
               f"{asset_count} times")
+
+        # Add requests information
+        print(f"\nRequests made: {self.request_count} " +
+              f"(max: {'unlimited' if self.max_requests is None else self.max_requests})")
+        if (self.max_requests is not None and
+            hasattr(self, 'request_count') and
+            self.request_count >= self.max_requests):
+            print("Request limit reached - crawl was incomplete")
 
         # Add summary of ignored items if applicable
         if (hasattr(self, 'ignored_asset_urls_count') and
@@ -728,7 +776,10 @@ class LinkChecker:
 
 def link_checker(url: str,
                  ignored_asset_paths: Optional[List[str]] = None,
-                 ignored_internal_paths: Optional[List[str]] = None
+                 ignored_internal_paths: Optional[List[str]] = None,
+                 timeout: float = 10.0,
+                 max_requests: Optional[int] = None,
+                 max_depth: Optional[int] = None
                  ) -> Tuple[Dict[str, Dict[str, int]],
                             Dict[str, Dict[str, str]]]:
     """Check links on a website and return the results.
@@ -737,9 +788,13 @@ def link_checker(url: str,
         url: The URL of the website to check.
         ignored_asset_paths: List of paths to ignore when logging internal assets.
         ignored_internal_paths: List of paths to check once but not crawl further.
+        timeout: Timeout in seconds for HTTP requests.
+        max_requests: Maximum number of requests to make (None for unlimited).
+        max_depth: Maximum depth to crawl (None for unlimited).
 
     Returns:
         A tuple of (broken_links, internal_assets).
     """
-    checker = LinkChecker(url, ignored_asset_paths, ignored_internal_paths)
+    checker = LinkChecker(url, ignored_asset_paths, ignored_internal_paths,
+                          timeout=timeout, max_requests=max_requests, max_depth=max_depth)
     return checker.run()

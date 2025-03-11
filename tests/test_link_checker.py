@@ -13,7 +13,8 @@ class TestLinkChecker(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.root_url = "https://example.com"
-        self.checker = LinkChecker(self.root_url)
+        self.checker = LinkChecker(self.root_url, timeout=10.0,
+                                   max_requests=100, max_depth=2)
 
     def test_normalize_url(self):
         """Test URL normalization."""
@@ -136,7 +137,8 @@ class TestLinkChecker(unittest.TestCase):
             "https://example.com/other"
         )
 
-        # Test relative URL without leading slash (should be relative to the directory)
+        # Test relative URL without leading slash (should be relative to the
+        # directory)
         self.assertEqual(
             self.checker._resolve_relative_url(
                 "https://example.com/page",
@@ -205,7 +207,8 @@ class TestLinkChecker(unittest.TestCase):
         </html>
         """
 
-        links, assets = self.checker._extract_links("https://example.com", html_content)
+        links, assets = self.checker._extract_links("https://example.com",
+                                                    html_content)
 
         # Check that correct links were extracted
         self.assertEqual(len(links), 2)
@@ -328,14 +331,18 @@ class TestLinkChecker(unittest.TestCase):
                               ignored_internal_paths=['/docs', '/blog'])
 
         # Test URLs that should not be crawled
-        self.assertTrue(checker._should_not_crawl("https://example.com/docs/index.html"))
-        self.assertTrue(checker._should_not_crawl("https://example.com/blog/post1.html"))
+        self.assertTrue(checker._should_not_crawl(
+            "https://example.com/docs/index.html"))
+        self.assertTrue(checker._should_not_crawl(
+            "https://example.com/blog/post1.html"))
         self.assertTrue(checker._should_not_crawl(
             "https://example.com/docs/api/reference.html"))
 
         # Test URLs that should be crawled
-        self.assertFalse(checker._should_not_crawl("https://example.com/index.html"))
-        self.assertFalse(checker._should_not_crawl("https://example.com/about.html"))
+        self.assertFalse(checker._should_not_crawl(
+            "https://example.com/index.html"))
+        self.assertFalse(checker._should_not_crawl(
+            "https://example.com/about.html"))
         self.assertFalse(checker._should_not_crawl(
             "https://example.com/documentation.html"))  # Not in /docs/
 

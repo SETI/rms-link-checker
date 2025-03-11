@@ -162,8 +162,13 @@ class TestCLI(unittest.TestCase):
         """Test that the --log-file option works correctly."""
         # Create a temporary file to use as a log file
         import tempfile
-        with tempfile.NamedTemporaryFile(delete=False) as temp:
-            log_path = temp.name
+        import os
+        import time
+        import logging
+
+        # Use a specific path in the temp directory rather than a NamedTemporaryFile
+        log_path = os.path.join(tempfile.gettempdir(), f"link_checker_test_log_{os.getpid()}.log")
+        print(f"Using log file: {log_path}")
 
         try:
             # Import the setup_logging function directly
@@ -172,23 +177,34 @@ class TestCLI(unittest.TestCase):
             # Set up logging with a log file
             setup_logging(3, log_path)  # Verbosity 3 = DEBUG
 
+            print(f"Logging system initialized with file: {log_path}")
+            print(f"Current handlers: {logging.getLogger().handlers}")
+
             # Log some test messages
-            import logging
             logging.debug("Debug message")
             logging.info("Info message")
             logging.warning("Warning message")
             logging.error("Error message")
 
-            # Flush and close all handlers before accessing the file
-            for handler in logging.getLogger().handlers[:]:
-                handler.flush()
-                handler.close()
-                logging.getLogger().removeHandler(handler)
+            print("Log messages sent")
+
+            # Ensure all logs are written to disk
+            logging.shutdown()
+
+            # Small delay to ensure filesystem operations complete
+            time.sleep(0.1)
+
+            # Verify the file exists and has size
+            if os.path.exists(log_path):
+                print(f"Log file exists with size: {os.path.getsize(log_path)} bytes")
+            else:
+                print(f"Log file does not exist: {log_path}")
 
             # Check if the log file was created and contains the messages
             with open(log_path, 'r') as f:
                 log_content = f.read()
-                print(f"Log content: {log_content}")
+                print(f"Log content length: {len(log_content)}")
+                print(f"Log content preview: {log_content[:200]}")
 
             # Check for each log level
             self.assertIn("Debug message", log_content)
@@ -201,16 +217,24 @@ class TestCLI(unittest.TestCase):
 
         finally:
             # Clean up the temporary file
-            import os
             if os.path.exists(log_path):
-                os.unlink(log_path)
+                try:
+                    os.unlink(log_path)
+                    print(f"Deleted log file: {log_path}")
+                except Exception as e:
+                    print(f"Failed to delete log file {log_path}: {str(e)}")
 
     def test_log_level_option(self):
         """Test that the --log-level option works correctly for the log file."""
         # Create a temporary file to use as a log file
         import tempfile
-        with tempfile.NamedTemporaryFile(delete=False) as temp:
-            log_path = temp.name
+        import os
+        import time
+        import logging
+
+        # Use a specific path in the temp directory rather than a NamedTemporaryFile
+        log_path = os.path.join(tempfile.gettempdir(), f"link_checker_test_level_{os.getpid()}.log")
+        print(f"Using log file: {log_path}")
 
         try:
             # Import the setup_logging function directly
@@ -220,24 +244,35 @@ class TestCLI(unittest.TestCase):
             # Verbosity 3 = DEBUG, but log file level is WARNING
             setup_logging(3, log_path, "WARNING")
 
+            print(f"Logging system initialized with file: {log_path}")
+            print(f"Current handlers: {logging.getLogger().handlers}")
+
             # Log some test messages
-            import logging
             logging.debug("Debug message")
             logging.info("Info message")
             logging.warning("Warning message")
             logging.error("Error message")
 
-            # Flush and close all handlers before accessing the file
-            for handler in logging.getLogger().handlers[:]:
-                handler.flush()
-                handler.close()
-                logging.getLogger().removeHandler(handler)
+            print("Log messages sent")
+
+            # Ensure all logs are written to disk
+            logging.shutdown()
+
+            # Small delay to ensure filesystem operations complete
+            time.sleep(0.1)
+
+            # Verify the file exists and has size
+            if os.path.exists(log_path):
+                print(f"Log file exists with size: {os.path.getsize(log_path)} bytes")
+            else:
+                print(f"Log file does not exist: {log_path}")
 
             # Check if the log file was created and contains only WARNING and
             # ERROR messages
             with open(log_path, 'r') as f:
                 log_content = f.read()
-                print(f"Log content: {log_content}")
+                print(f"Log content length: {len(log_content)}")
+                print(f"Log content preview: {log_content[:200]}")
 
             # Debug and Info should not be in the log file
             self.assertNotIn("Debug message", log_content)
@@ -252,9 +287,12 @@ class TestCLI(unittest.TestCase):
 
         finally:
             # Clean up the temporary file
-            import os
             if os.path.exists(log_path):
-                os.unlink(log_path)
+                try:
+                    os.unlink(log_path)
+                    print(f"Deleted log file: {log_path}")
+                except Exception as e:
+                    print(f"Failed to delete log file {log_path}: {str(e)}")
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import requests
 
-from check_links.main import LinkChecker
+from link_checker.main import LinkChecker
 
 
 class TestLinkChecker(unittest.TestCase):
@@ -215,9 +215,9 @@ class TestLinkChecker(unittest.TestCase):
             self.assertFalse(link.startswith("#"))
             self.assertFalse(link.startswith("javascript:"))
 
-    @patch('check_links.main.LinkChecker._check_url')
-    @patch('check_links.main.LinkChecker._extract_links')
-    def test_check_links(self, mock_extract_links, mock_check_url):
+    @patch('link_checker.main.LinkChecker._check_url')
+    @patch('link_checker.main.LinkChecker._extract_links')
+    def test_link_checker(self, mock_extract_links, mock_check_url):
         """Test link checking process."""
         # Mock successful response
         mock_check_url.return_value = ("<html><body>Test</body></html>", 200)
@@ -230,7 +230,7 @@ class TestLinkChecker(unittest.TestCase):
 
         # Run link checking
         with patch('time.sleep'):  # Patch sleep to speed up test
-            self.checker.check_links()
+            self.checker.link_checker()
 
         # Check that the URLs were visited
         self.assertIn("https://example.com", self.checker.visited_urls)
@@ -449,8 +449,8 @@ class TestLinkChecker(unittest.TestCase):
         self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com/anything"))
         self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com"))
 
-    def test_check_links_respects_hierarchy(self):
-        """Test that check_links respects the allowed hierarchy."""
+    def test_link_checker_respects_hierarchy(self):
+        """Test that link_checker respects the allowed hierarchy."""
         # Create a checker with a subdirectory as the root
         checker = LinkChecker("https://example.com/subdir")
 
@@ -488,7 +488,7 @@ class TestLinkChecker(unittest.TestCase):
 
             # Run link checking
             with patch('time.sleep'):  # Patch sleep to speed up test
-                checker.check_links()
+                checker.link_checker()
 
             # Check that URLs within hierarchy were added to urls_to_visit
             for url in within_hierarchy:

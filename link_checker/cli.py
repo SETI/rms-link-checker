@@ -2,12 +2,13 @@
 
 import argparse
 import logging
+from pathlib import Path
 import sys
 from typing import List, Optional
 
 from colorama import init as colorama_init, Fore, Style
 
-from check_links.main import LinkChecker
+from link_checker.main import LinkChecker
 
 
 # Custom formatter for colored and properly formatted logs
@@ -151,7 +152,7 @@ def create_parser() -> argparse.ArgumentParser:
         description="Check for broken links in a file or directory of files."
     )
     parser.add_argument(
-        "target", help="File or directory to check for broken links."
+        "root_url", help="File or directory to check for broken links."
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -172,10 +173,6 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-o", "--output",
         help="Write the report to the specified file instead of stdout."
-    )
-    parser.add_argument(
-        "--root-url",
-        help="Root URL to use for resolving relative links."
     )
     parser.add_argument(
         "--timeout",
@@ -208,16 +205,14 @@ def create_parser() -> argparse.ArgumentParser:
         help="Maximum levels to navigate up/down from the root URL in the URL hierarchy."
     )
     parser.add_argument(
-        "--ignore-url",
-        action="append",
-        default=[],
-        help="URL pattern to ignore. Can be used multiple times."
+        "--ignore-asset-url-file",
+        default=None,
+        help="URL pattern to ignore for assets. Can be used multiple times."
     )
     parser.add_argument(
-        "--include-url",
-        action="append",
-        default=[],
-        help="URL pattern to include. Can be used multiple times."
+        "--ignore-internal-url-file",
+        default=None,
+        help="URL pattern to ignore for internal links. Can be used multiple times."
     )
     return parser
 
@@ -243,16 +238,21 @@ def main(args: Optional[List[str]] = None) -> int:
 
         # Read ignored paths from files
         ignored_asset_paths = []
-        if parsed_args.ignore_url:
-            ignored_asset_paths = parsed_args.ignore_url
+        if parsed_args.ignore_asset_url_file:
+            ignored_asset_paths = Path(parsed_args.ignore_asset_url_file).read_text().splitlines()
             logging.info(f"Loaded {len(ignored_asset_paths)} asset paths to ignore")
 
+        ignored_internal_paths = []
+        if parsed_args.ignore_internal_url_file:
+            ignored_internal_paths = Path(parsed_args.ignore_internal_url_file).read_text().splitlines()
+            logging.info(f"Loaded {len(ignored_internal_paths)} asset paths to ignore")
+
         # Create a link checker
-        checker = LinkChecker(parsed_args.root_url, ignored_asset_paths, [])
+        checker = LinkChecker(parsed_args.root_url, ignored_asset_paths, ignored_internal_paths)
 
         # Run the link checker
         try:
-            checker.check_links()
+            checker.link_checker()
             checker.check_assets()
         except KeyboardInterrupt:
             logging.info("Link checking interrupted by user")
@@ -273,7 +273,7 @@ def main(args: Optional[List[str]] = None) -> int:
         return 0
 
     except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
+        logging.error(f"An error occurred: {str(e)}", exc_info=True)
         return 1
 
 

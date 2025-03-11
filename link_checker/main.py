@@ -49,7 +49,7 @@ class LinkChecker:
         # Session for making requests
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'check_links/0.1.0 (+https://github.com/yourusername/check_links)'
+            'User-Agent': 'link_checker/0.1.0 (+https://github.com/yourusername/link_checker)'
         })
 
     def _normalize_url(self, url: str) -> str:
@@ -442,7 +442,7 @@ class LinkChecker:
             logger.error(f"Error accessing URL {url}: {str(e)}")
             return None, None
 
-    def check_links(self) -> None:
+    def link_checker(self) -> None:
         """Check all links on the website."""
         # Add counter for URLs outside allowed hierarchy
         self.urls_outside_hierarchy_count = 0
@@ -503,7 +503,7 @@ class LinkChecker:
 
                 # Add the extracted assets to the internal assets
                 for asset_url, asset_type in assets.items():
-                    self.internal_assets[current_url][asset_url] = asset_type
+                    self.internal_assets[current_url.rstrip('/')][asset_url] = asset_type
 
                 # Add a small delay to avoid overwhelming the server
                 time.sleep(0.1)
@@ -557,7 +557,7 @@ class LinkChecker:
             A tuple of (broken_links, internal_assets).
         """
         try:
-            self.check_links()
+            self.link_checker()
             self.check_assets()
         except KeyboardInterrupt:
             logger.info("Link checking interrupted by user")
@@ -567,7 +567,7 @@ class LinkChecker:
     def print_report(self) -> None:
         """Print a report of the link checker results."""
         # Print configuration
-        print("\n=== CONFIGURATION ===")
+        print("=== CONFIGURATION ===")
         print(f"Root URL: {self.root_url}")
 
         # Print ignored asset paths
@@ -673,7 +673,7 @@ class LinkChecker:
         return False
 
 
-def check_links(url: str, ignored_asset_paths: List[str] = None, ignored_internal_paths: List[str] = None) -> Tuple[Dict[str, Dict[str, int]], Dict[str, Dict[str, str]]]:
+def link_checker(url: str, ignored_asset_paths: List[str] = None, ignored_internal_paths: List[str] = None) -> Tuple[Dict[str, Dict[str, int]], Dict[str, Dict[str, str]]]:
     """Check links on a website and return the results.
 
     Args:

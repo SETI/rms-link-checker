@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch, MagicMock, mock_open
 
-from check_links.cli import create_parser, main
+from link_checker.cli import create_parser, main
 
 
 class TestCLI(unittest.TestCase):
@@ -44,8 +44,8 @@ class TestCLI(unittest.TestCase):
         args = create_parser().parse_args(["example.html", "--root-url", "https://example.com"])
         self.assertEqual(args.root_url, "https://example.com")
 
-    @patch('check_links.cli.LinkChecker')
-    @patch('check_links.cli.setup_logging')
+    @patch('link_checker.cli.LinkChecker')
+    @patch('link_checker.cli.setup_logging')
     def test_main(self, mock_setup_logging, mock_link_checker_cls):
         """Test main function."""
         # Mock the LinkChecker instance
@@ -61,8 +61,8 @@ class TestCLI(unittest.TestCase):
         # Check that LinkChecker was created with the right arguments
         mock_link_checker_cls.assert_called_once_with(None, [], [])
 
-        # Check that check_links and check_assets were called
-        mock_link_checker.check_links.assert_called_once()
+        # Check that link_checker and check_assets were called
+        mock_link_checker.link_checker.assert_called_once()
         mock_link_checker.check_assets.assert_called_once()
 
         # Check that print_report was called
@@ -105,7 +105,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(exit_code, 0)
 
         # Test with error in link checking
-        mock_link_checker.check_links.side_effect = Exception("Test error")
+        mock_link_checker.link_checker.side_effect = Exception("Test error")
         exit_code = main(["example.html"])
         self.assertEqual(exit_code, 1)
 
@@ -114,7 +114,7 @@ class TestCLI(unittest.TestCase):
         import io
         import logging
         import re
-        from check_links.cli import ColoredFormatter
+        from link_checker.cli import ColoredFormatter
 
         # Create a test logger
         test_logger = logging.getLogger("test_period_format")
@@ -159,7 +159,7 @@ class TestCLI(unittest.TestCase):
 
         try:
             # Import the setup_logging function directly
-            from check_links.cli import setup_logging
+            from link_checker.cli import setup_logging
 
             # Set up logging with a log file
             setup_logging(3, log_path)  # Verbosity 3 = DEBUG
@@ -200,7 +200,7 @@ class TestCLI(unittest.TestCase):
 
         try:
             # Import the setup_logging function directly
-            from check_links.cli import setup_logging
+            from link_checker.cli import setup_logging
 
             # Set up logging with a log file and log level set to WARNING
             setup_logging(3, log_path, "WARNING")  # Verbosity 3 = DEBUG, but log file level is WARNING

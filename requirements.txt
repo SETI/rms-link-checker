@@ -1,3 +1,5 @@
-requests>=2.25.0
 beautifulsoup4>=4.9.0
 colorama>=0.4.4
+flake8
+pytest
+requests>=2.25.0

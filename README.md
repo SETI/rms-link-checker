@@ -17,7 +17,7 @@ A Python tool that checks websites for broken links and catalogs internal assets
 ## Installation
 
 ```bash
-pip install check_links
+pip install link_checker
 ```
 
 Or from source:
@@ -31,7 +31,7 @@ pip install -e .
 ## Usage
 
 ```bash
-check_links https://example.com
+link_checker https://example.com
 ```
 
 ### Options
@@ -47,12 +47,12 @@ check_links https://example.com
 
 Simple check:
 ```bash
-check_links https://example.com
+link_checker https://example.com
 ```
 
 Check a specific section of a website (won't crawl to parent directories):
 ```bash
-check_links https://example.com/section/subsection
+link_checker https://example.com/section/subsection
 ```
 
 Ignore specific asset paths:
@@ -62,7 +62,7 @@ echo "/images" > ignore_assets.txt
 echo "css" >> ignore_assets.txt      # Leading slash is optional
 echo "scripts" >> ignore_assets.txt
 
-check_links https://example.com --ignore-asset-paths-file ignore_assets.txt
+link_checker https://example.com --ignore-asset-paths-file ignore_assets.txt
 ```
 
 Check but don't crawl specific sections:
@@ -71,22 +71,22 @@ Check but don't crawl specific sections:
 echo "docs" > ignore_crawl.txt       # Leading slash is optional
 echo "/blog" >> ignore_crawl.txt
 
-check_links https://example.com --ignore-internal-paths-file ignore_crawl.txt
+link_checker https://example.com --ignore-internal-paths-file ignore_crawl.txt
 ```
 
 Verbose output with detailed logging:
 ```bash
-check_links https://example.com -vv
+link_checker https://example.com -vv
 ```
 
 Verbose output with logs written to a file:
 ```bash
-check_links https://example.com -vv --log-file=check_links.log
+link_checker https://example.com -vv --log-file=link_checker.log
 ```
 
 Verbose output with logs written to a file, but only warnings and errors:
 ```bash
-check_links https://example.com -vv --log-file=check_links.log --log-level=WARNING
+link_checker https://example.com -vv --log-file=link_checker.log --log-level=WARNING
 ```
 
 ### Report Format

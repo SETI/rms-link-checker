@@ -1,0 +1,52 @@
+[metadata]
+name = link_checker
+description = A tool for checking broken links and cataloging internal assets on websites
+long_description = file: README.md
+long_description_content_type = text/markdown
+author = RMS Link Checker
+author_email = example@example.com
+url = https://github.com/SETI/rms-link-checker
+classifiers =
+    Programming Language :: Python :: 3
+    License :: OSI Approved :: MIT License
+    Operating System :: OS Independent
+
+[options]
+packages = find:
+python_requires = >=3.6
+install_requires =
+    requests>=2.25.0
+    beautifulsoup4>=4.9.0
+    colorama>=0.4.4
+
+[options.extras_require]
+dev =
+    pytest>=6.0.0
+    pytest-cov>=2.10.0
+    flake8>=3.8.0
+    black>=20.8b1
+    mypy>=0.800
+
+[options.entry_points]
+console_scripts =
+    link_checker = link_checker.cli:main
+
+[flake8]
+max-line-length = 100
+exclude = .git,__pycache__,build,dist
+
+[mypy]
+python_version = 3.6
+warn_return_any = True
+warn_unused_configs = True
+disallow_untyped_defs = True
+disallow_incomplete_defs = True
+
+[mypy.plugins.requests]
+ignore_missing_imports = True
+
+[tool:pytest]
+testpaths = tests
+python_files = test_*.py
+python_functions = test_*
+addopts = --cov=link_checker --cov-report=term-missing

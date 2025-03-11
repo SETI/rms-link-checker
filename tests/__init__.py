@@ -1,1 +1,1 @@
-"""Tests for the check_links package."""
+"""Tests for the link_checker package."""

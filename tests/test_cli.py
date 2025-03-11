@@ -13,12 +13,11 @@ class TestCLI(unittest.TestCase):
         """Test argument parsing."""
         # Test with required arguments only
         args = create_parser().parse_args(["example.html"])
-        self.assertEqual(args.target, "example.html")
+        self.assertEqual(args.root_url, "example.html")
         self.assertEqual(args.verbose, 0)
         self.assertIsNone(args.output)
         self.assertIsNone(args.log_file)
         self.assertEqual(args.log_level, "DEBUG")
-        self.assertIsNone(args.root_url)
 
         # Test with verbose flag
         args = create_parser().parse_args(["example.html", "-v"])
@@ -40,10 +39,6 @@ class TestCLI(unittest.TestCase):
         args = create_parser().parse_args(["example.html", "--log-level", "WARNING"])
         self.assertEqual(args.log_level, "WARNING")
 
-        # Test with root URL
-        args = create_parser().parse_args(["example.html", "--root-url", "https://example.com"])
-        self.assertEqual(args.root_url, "https://example.com")
-
     @patch('link_checker.cli.LinkChecker')
     @patch('link_checker.cli.setup_logging')
     def test_main(self, mock_setup_logging, mock_link_checker_cls):
@@ -59,9 +54,9 @@ class TestCLI(unittest.TestCase):
         mock_setup_logging.assert_called_once()
 
         # Check that LinkChecker was created with the right arguments
-        mock_link_checker_cls.assert_called_once_with(None, [], [])
+        mock_link_checker_cls.assert_called_once_with("example.html", [], [])
 
-        # Check that link_checker and check_assets were called
+        # Check that check_links and check_assets were called
         mock_link_checker.link_checker.assert_called_once()
         mock_link_checker.check_assets.assert_called_once()
 
@@ -85,21 +80,18 @@ class TestCLI(unittest.TestCase):
         mock_setup_logging.reset_mock()
         mock_link_checker_cls.reset_mock()
 
-        # Test with root URL
-        exit_code = main(["example.html", "--root-url", "https://example.com"])
+        # Test with ignore URL files
+        with patch('pathlib.Path.read_text') as mock_read_text:
+            # Mock the file reading to return some test patterns
+            mock_read_text.side_effect = [
+                "pattern1\npattern2\npattern3",  # asset patterns
+                "pattern4\npattern5"             # internal patterns
+            ]
 
-        # Check that LinkChecker was created with the right root URL
-        mock_link_checker_cls.assert_called_once_with("https://example.com", [], [])
+            exit_code = main(["example.html", "--ignore-asset-url-file", "asset_patterns.txt", "--ignore-internal-url-file", "internal_patterns.txt"])
 
-        # Reset mocks
-        mock_setup_logging.reset_mock()
-        mock_link_checker_cls.reset_mock()
-
-        # Test with ignore URLs
-        exit_code = main(["example.html", "--ignore-url", "pattern1", "--ignore-url", "pattern2"])
-
-        # Check that LinkChecker was created with the right ignored URLs
-        mock_link_checker_cls.assert_called_once_with(None, ["pattern1", "pattern2"], [])
+            # Check that LinkChecker was created with the right ignored URLs
+            mock_link_checker_cls.assert_called_once_with("example.html", ["pattern1", "pattern2", "pattern3"], ["pattern4", "pattern5"])
 
         # Check exit code
         self.assertEqual(exit_code, 0)

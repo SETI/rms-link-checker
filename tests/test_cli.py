@@ -62,9 +62,8 @@ class TestCLI(unittest.TestCase):
             max_depth=None
         )
 
-        # Check that check_links and check_assets were called
-        mock_link_checker.link_checker.assert_called_once()
-        mock_link_checker.check_assets.assert_called_once()
+        # Check that run was called (which internally calls link_checker and check_assets)
+        mock_link_checker.run.assert_called_once()
 
         # Check that print_report was called
         mock_link_checker.print_report.assert_called_once()
@@ -116,7 +115,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(exit_code, 0)
 
         # Test with error in link checking
-        mock_link_checker.link_checker.side_effect = Exception("Test error")
+        mock_link_checker.run.side_effect = Exception("Test error")
         exit_code = main(["example.html"])
         self.assertEqual(exit_code, 1)
 

@@ -909,7 +909,7 @@ class LinkChecker:
             print("\n=== BROKEN LINKS/ASSETS ===")
             for page_url, broken in self.broken_links.items():
                 print(f"\nOn page: {page_url}")
-                for link, status in broken.items():
+                for link, status in sorted(broken.items()):
                     status_str = str(status) if status else "Connection error"
                     print(f"  - {link} (Status: {status_str})")
         else:
@@ -936,7 +936,7 @@ class LinkChecker:
         # Group assets by type
         assets_by_type: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
         for page_url, assets in self.internal_assets.items():
-            for asset_url, asset_type in assets.items():
+            for asset_url, asset_type in sorted(assets.items()):
                 assets_by_type[asset_type].append((asset_url, page_url))
 
         # Print assets grouped by type

@@ -207,19 +207,17 @@ class TestLinkChecker(unittest.TestCase):
         </html>
         """
 
-        links, assets = self.checker._extract_links("https://example.com",
-                                                    html_content)
+        links = self.checker._extract_links("https://example.com", html_content)
 
         # Check that correct links were extracted
         self.assertEqual(len(links), 2)
         self.assertIn("https://example.com/page1", links)
         self.assertIn("https://example.com/page2", links)
 
-        # Check that mailto, anchor, and js links were ignored
-        for link in links:
-            self.assertFalse(link.startswith("mailto:"))
-            self.assertFalse(link.startswith("#"))
-            self.assertFalse(link.startswith("javascript:"))
+        # Check that mailto and javascript links were ignored
+        self.assertNotIn("mailto:info@example.com", links)
+        self.assertNotIn("javascript:void(0)", links)
+        self.assertNotIn("#section", links)
 
     @patch('link_checker.main.LinkChecker._check_url')
     @patch('link_checker.main.LinkChecker._extract_links')
@@ -233,19 +231,18 @@ class TestLinkChecker(unittest.TestCase):
         # Set the side effect for the mock
         mock_check_url.side_effect = check_url_side_effect
 
-        # Mock extracted links and assets
+        # Mock extracted links
         # Use side_effect to return different values for different calls
         mock_extract_links.side_effect = [
-            # First call (for root URL)
-            (
-                ["https://example.com/page1", "https://example.com/page2"],
-                {"https://example.com/style.css": "web_asset"}
-            ),
-            # Subsequent calls (for the extracted links) - return empty lists to stop
-            # recursion
-            ([], {}),
-            ([], {})
+            # First call (for root URL) - returns links
+            ["https://example.com/page1", "https://example.com/page2"],
+            # Subsequent calls (for the extracted links) - return empty lists to stop recursion
+            [],
+            []
         ]
+
+        # Also set up internal assets manually since we're mocking _extract_links
+        self.checker.internal_assets["https://example.com"] = {"https://example.com/style.css": "web_asset"}
 
         # Run link checking
         with patch('time.sleep'):  # Patch sleep to speed up test
@@ -306,22 +303,29 @@ class TestLinkChecker(unittest.TestCase):
         </html>
         """
 
-        links, assets = checker._extract_links("https://example.com", html_content)
+        links = checker._extract_links("https://example.com", html_content)
 
-        # Check that HTML links were extracted
+        # Check that the HTML links were extracted but not the assets
         self.assertEqual(len(links), 1)
         self.assertIn("https://example.com/page1", links)
 
-        # Check that assets in ignored paths were not included
-        for asset_url in assets:
-            self.assertFalse(asset_url.startswith("https://example.com/images/"))
-            self.assertFalse(asset_url.startswith("https://example.com/css/"))
+        # Check that assets in ignored paths are tracked in ignored_internal_assets_found
+        self.assertIn("https://example.com/images/photo.jpg",
+                     list(checker.ignored_internal_assets_found["https://example.com"].keys()))
+        self.assertIn("https://example.com/images/logo.png",
+                     list(checker.ignored_internal_assets_found["https://example.com"].keys()))
+        self.assertIn("https://example.com/css/style.css",
+                     list(checker.ignored_internal_assets_found["https://example.com"].keys()))
 
-        # Check that other assets were included
-        self.assertIn("https://example.com/assets/document.pdf", assets)
-        self.assertIn("https://example.com/assets/banner.jpg", assets)
-        self.assertIn("https://example.com/assets/custom.css", assets)
-        self.assertIn("https://example.com/js/script.js", assets)
+        # Check that non-ignored assets are in internal_assets
+        self.assertIn("https://example.com/assets/document.pdf",
+                     list(checker.internal_assets["https://example.com"].keys()))
+        self.assertIn("https://example.com/assets/banner.jpg",
+                     list(checker.internal_assets["https://example.com"].keys()))
+        self.assertIn("https://example.com/assets/custom.css",
+                     list(checker.internal_assets["https://example.com"].keys()))
+        self.assertIn("https://example.com/js/script.js",
+                     list(checker.internal_assets["https://example.com"].keys()))
 
     def test_should_not_crawl(self):
         """Test that internal paths that should not be crawled are correctly
@@ -355,9 +359,8 @@ class TestLinkChecker(unittest.TestCase):
             ignored_internal_paths=['/docs', '/blog']
         )
 
-        # Simulate some ignored assets and non-crawled URLs
-        checker.ignored_asset_urls_count = 5
-        checker.non_crawled_urls_count = 3
+        # Simulate some ignored assets
+        checker.ignored_internal_assets_count = 5
 
         # Capture the output of print_report
         import io
@@ -375,7 +378,7 @@ class TestLinkChecker(unittest.TestCase):
             self.assertIn("Root URL: https://example.com", output)
 
             # Check that ignored asset paths are shown
-            self.assertIn("Ignored asset paths:", output)
+            self.assertIn("Ignored asset paths (checked but not reported):", output)
             self.assertIn("- /css", output)
             self.assertIn("- /images", output)
 
@@ -385,8 +388,7 @@ class TestLinkChecker(unittest.TestCase):
             self.assertIn("- /docs", output)
 
             # Check that counters are shown
-            self.assertIn("Assets ignored due to path patterns: 5", output)
-            self.assertIn("URLs checked but not crawled: 3", output)
+            self.assertIn("Ignored assets found: 5", output)
 
         finally:
             # Reset stdout
@@ -525,9 +527,8 @@ class TestLinkChecker(unittest.TestCase):
                 ]
                 # First call returns all links, subsequent calls return empty lists
                 mock_extract_links.side_effect = [
-                    (within_hierarchy + outside_hierarchy, {}),
-                    *[([], {})
-                      for _ in range(len(within_hierarchy) + len(outside_hierarchy))]
+                    within_hierarchy + outside_hierarchy,
+                    *[[] for _ in range(len(within_hierarchy) + len(outside_hierarchy))]
                 ]
 
                 # Run link checking

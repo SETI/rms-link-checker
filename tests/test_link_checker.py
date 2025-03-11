@@ -122,38 +122,38 @@ class TestLinkChecker(unittest.TestCase):
         # Test absolute URL (should be unchanged)
         self.assertEqual(
             self.checker._resolve_relative_url(
-                "https://example.com/page",
-                "https://example.com/other"
+                "https://example.com/page/page2",
+                "https://example.com/other/other2"
             ),
-            "https://example.com/other"
+            "https://example.com/other/other2"
         )
 
         # Test relative URL with leading slash
         self.assertEqual(
             self.checker._resolve_relative_url(
-                "https://example.com/page",
-                "/other"
+                "https://example.com/page/page2",
+                "/other/other2"
             ),
-            "https://example.com/other"
+            "https://example.com/other/other2"
         )
 
         # Test relative URL without leading slash (should be relative to the
         # directory)
         self.assertEqual(
             self.checker._resolve_relative_url(
-                "https://example.com/page",
+                "https://example.com/page/page2",
                 "other"
             ),
-            "https://example.com/page/other"
+            "https://example.com/page/page2/other"
         )
 
         # Test relative URL without leading slash but with a file-like base URL
         self.assertEqual(
             self.checker._resolve_relative_url(
-                "https://example.com/page.html",
+                "https://example.com/page/page2.html",
                 "other"
             ),
-            "https://example.com/other"
+            "https://example.com/page/other"
         )
 
     def test_check_url(self):

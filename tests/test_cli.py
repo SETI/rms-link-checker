@@ -56,6 +56,7 @@ class TestCLI(unittest.TestCase):
         # Check that LinkChecker was created with the right arguments
         mock_link_checker_cls.assert_called_once_with(
             "example.html", [], [],
+            ignored_external_links=None,
             timeout=10.0,
             max_requests=None,
             max_depth=None
@@ -87,21 +88,25 @@ class TestCLI(unittest.TestCase):
         mock_link_checker_cls.reset_mock()
 
         # Test with ignore URL files
-        with patch('pathlib.Path.read_text') as mock_read_text:
+        with patch('link_checker.cli.read_list_from_file') as mock_read_list:
             # Mock the file reading to return some test patterns
-            mock_read_text.side_effect = [
-                "pattern1\npattern2\npattern3",  # asset patterns
-                "pattern4\npattern5"             # internal patterns
+            mock_read_list.side_effect = [
+                ["pattern1", "pattern2", "pattern3"],  # asset patterns
+                ["pattern4", "pattern5"],              # internal patterns
+                ["https://example.org", "https://test.com"] # external links
             ]
 
             exit_code = main(["example.html",
                               "--ignore-asset-url-file", "asset_patterns.txt",
-                              "--ignore-internal-url-file", "internal_patterns.txt"])
+                              "--ignore-internal-url-file", "internal_patterns.txt",
+                              "--ignore-external-links-file", "external_links.txt"])
 
             # Check that LinkChecker was created with the right ignored URLs
             mock_link_checker_cls.assert_called_once_with(
-                "example.html", ["pattern1", "pattern2", "pattern3"],
+                "example.html",
+                ["pattern1", "pattern2", "pattern3"],
                 ["pattern4", "pattern5"],
+                ignored_external_links=["https://example.org", "https://test.com"],
                 timeout=10.0,
                 max_requests=None,
                 max_depth=None

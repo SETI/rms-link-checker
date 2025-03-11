@@ -33,7 +33,7 @@ A Python tool that checks websites for broken links and catalogs internal assets
 - Detects broken internal links
 - Catalogs references to non-HTML assets (images, text files, etc.)
 - Only visits each page once
-- Ignores external links
+- Checks external links but does not crawl them
 - Provides detailed logging
 - Allows specifying paths to exclude from internal asset reporting
 - Supports checking but not crawling specific website sections
@@ -50,6 +50,13 @@ Or from source:
 git clone https://github.com/SETI/rms-link-checker.git
 cd rms-link-checker
 pip install -e .
+```
+
+You can also install using `pipx`, which allows you to install the software and its
+dependencies in isolation without needing to set up a virtual environment:
+
+```bash
+pipx install rms-link-checker
 ```
 
 ## Usage

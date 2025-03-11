@@ -179,6 +179,12 @@ class TestCLI(unittest.TestCase):
             logging.warning("Warning message")
             logging.error("Error message")
 
+            # Flush and close all handlers before accessing the file
+            for handler in logging.getLogger().handlers[:]:
+                handler.flush()
+                handler.close()
+                logging.getLogger().removeHandler(handler)
+
             # Check if the log file was created and contains the messages
             with open(log_path, 'r') as f:
                 log_content = f.read()
@@ -220,6 +226,12 @@ class TestCLI(unittest.TestCase):
             logging.info("Info message")
             logging.warning("Warning message")
             logging.error("Error message")
+
+            # Flush and close all handlers before accessing the file
+            for handler in logging.getLogger().handlers[:]:
+                handler.flush()
+                handler.close()
+                logging.getLogger().removeHandler(handler)
 
             # Check if the log file was created and contains only WARNING and
             # ERROR messages

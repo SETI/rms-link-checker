@@ -10,6 +10,11 @@ from colorama import init as colorama_init, Fore, Style
 
 from link_checker.main import LinkChecker
 
+try:
+    from link_checker._version import __version__
+except ImportError:  # pragma: no cover
+    __version__ = 'Version unspecified'
+
 
 # Custom formatter for colored and properly formatted logs
 class ColoredFormatter(logging.Formatter):
@@ -153,7 +158,8 @@ def setup_logging(verbosity: int,
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser for the command line tool."""
     parser = argparse.ArgumentParser(
-        description="Check for broken links in a file or directory of files."
+        description="Check for broken links in a file or directory of files. "
+        f"Version: {__version__}."
     )
     parser.add_argument(
         "root_url", help="File or directory to check for broken links."

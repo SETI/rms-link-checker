@@ -1,0 +1,13 @@
+beautifulsoup4>=4.9.0
+colorama>=0.4.4
+coverage
+flake8
+mypy
+myst-parser
+pytest
+requests>=2.25.0
+sphinx
+sphinxcontrib-napoleon
+sphinx-rtd-theme
+types-colorama
+types-requests

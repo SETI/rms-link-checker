@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools", "setuptools_scm[toml]"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rms-link-checker"
+dynamic = ["version"]
+description = "A tool for checking broken links and cataloging internal assets on websites"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "beautifulsoup4",
+  "colorama",
+  "requests"
+]
+license = {text = "Apache-2.0"}
+maintainers = [
+  {name = "Robert S. French", email = "rfrench@seti.org"}
+]
+keywords = ["link checker"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Natural Language :: English",
+  "Topic :: Utilities",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: MacOS :: MacOS X",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows"
+]
+
+[project.urls]
+Homepage = "https://github.com/SETI/rms-link-checker"
+Documentation = "https://rms-link-checker.readthedocs.io/en/latest"
+Repository = "https://github.com/SETI/rms-link-checker"
+Source = "https://github.com/SETI/rms-link-checker"
+Issues = "https://github.com/SETI/rms-link-checker/issues"
+
+[project.scripts]
+link_checker = "link_checker.cli:main"
+
+[tool.setuptools]
+packages = ["link_checker"]
+
+[tool.setuptools.package-data]
+"link_checker" = ["py.typed"]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+write_to = "link_checker/_version.py"

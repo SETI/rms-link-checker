@@ -135,20 +135,18 @@ The report includes:
 - Summary with counts (visited pages, broken links, assets)
 - Stats on ignored assets, limited-crawl sections, and URLs outside hierarchy
 
-## Development
+# Contributing
 
-### Setup development environment
+Information on contributing to this package can be found in the
+[Contributing Guide](https://github.com/SETI/rms-link-checker/blob/main/CONTRIBUTING.md).
 
-```bash
-pip install -e ".[dev]"
-```
+# Links
 
-### Run tests
+- [Documentation](https://rms-link-checker.readthedocs.io)
+- [Repository](https://github.com/SETI/rms-link-checker)
+- [Issue tracker](https://github.com/SETI/rms-link-checker/issues)
+- [PyPi](https://pypi.org/project/rms-link-checker)
 
-```bash
-pytest
-```
+# Licensing
 
-## License
-
-MIT License
+This code is licensed under the [Apache License v2.0](https://github.com/SETI/rms-link-checker/blob/main/LICENSE).

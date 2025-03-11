@@ -13,7 +13,8 @@ from link_checker.main import LinkChecker
 
 # Custom formatter for colored and properly formatted logs
 class ColoredFormatter(logging.Formatter):
-    """A formatter that adds colors to logs based on their level and uses periods for fractions."""
+    """A formatter that adds colors to logs based on their level and uses periods for
+    fractions."""
 
     COLORS = {
         logging.DEBUG: Fore.CYAN,
@@ -24,7 +25,8 @@ class ColoredFormatter(logging.Formatter):
     }
 
     def __init__(self, fmt=None, datefmt=None, style='%'):
-        # Note: Don't include microseconds in datefmt as we'll manually format it in formatTime
+        # Note: Don't include microseconds in datefmt as we'll manually format it in
+        # formatTime
         if datefmt is None:
             datefmt = '%Y-%m-%d %H:%M:%S'
         super().__init__(fmt=fmt, datefmt=datefmt, style=style)
@@ -51,7 +53,9 @@ class ColoredFormatter(logging.Formatter):
         return color + log_message + Style.RESET_ALL
 
 
-def setup_logging(verbosity: int, log_file: Optional[str] = None, log_level: Optional[str] = None) -> None:
+def setup_logging(verbosity: int,
+                  log_file: Optional[str] = None,
+                  log_level: Optional[str] = None) -> None:
     """Set up logging based on verbosity level.
 
     Args:
@@ -181,12 +185,6 @@ def create_parser() -> argparse.ArgumentParser:
         help="Timeout in seconds for HTTP requests."
     )
     parser.add_argument(
-        "--max-connections",
-        type=int,
-        default=10,
-        help="Maximum number of concurrent connections."
-    )
-    parser.add_argument(
         "--max-requests",
         type=int,
         default=100,
@@ -197,12 +195,6 @@ def create_parser() -> argparse.ArgumentParser:
         type=int,
         default=2,
         help="Maximum depth to crawl."
-    )
-    parser.add_argument(
-        "--max-hierarchy",
-        type=int,
-        default=None,
-        help="Maximum levels to navigate up/down from the root URL in the URL hierarchy."
     )
     parser.add_argument(
         "--ignore-asset-url-file",
@@ -239,16 +231,20 @@ def main(args: Optional[List[str]] = None) -> int:
         # Read ignored paths from files
         ignored_asset_paths = []
         if parsed_args.ignore_asset_url_file:
-            ignored_asset_paths = Path(parsed_args.ignore_asset_url_file).read_text().splitlines()
+            ignored_asset_paths = (Path(parsed_args.ignore_asset_url_file)
+                                   .read_text().splitlines())
             logging.info(f"Loaded {len(ignored_asset_paths)} asset paths to ignore")
 
         ignored_internal_paths = []
         if parsed_args.ignore_internal_url_file:
-            ignored_internal_paths = Path(parsed_args.ignore_internal_url_file).read_text().splitlines()
+            ignored_internal_paths = (Path(parsed_args.ignore_internal_url_file)
+                                      .read_text().splitlines())
             logging.info(f"Loaded {len(ignored_internal_paths)} asset paths to ignore")
 
         # Create a link checker
-        checker = LinkChecker(parsed_args.root_url, ignored_asset_paths, ignored_internal_paths)
+        checker = LinkChecker(parsed_args.root_url,
+                              ignored_asset_paths,
+                              ignored_internal_paths)
 
         # Run the link checker
         try:

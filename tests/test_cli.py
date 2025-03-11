@@ -1,7 +1,7 @@
 """Tests for the CLI module."""
 
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 
 from link_checker.cli import create_parser, main
 
@@ -71,7 +71,8 @@ class TestCLI(unittest.TestCase):
         mock_link_checker_cls.reset_mock()
 
         # Test with log level option
-        exit_code = main(["example.html", "--log-file", "test.log", "--log-level", "WARNING"])
+        exit_code = main(["example.html", "--log-file", "test.log",
+                          "--log-level", "WARNING"])
 
         # Check that setup_logging was called with the right log level
         mock_setup_logging.assert_called_once_with(0, "test.log", "WARNING")
@@ -88,10 +89,14 @@ class TestCLI(unittest.TestCase):
                 "pattern4\npattern5"             # internal patterns
             ]
 
-            exit_code = main(["example.html", "--ignore-asset-url-file", "asset_patterns.txt", "--ignore-internal-url-file", "internal_patterns.txt"])
+            exit_code = main(["example.html",
+                              "--ignore-asset-url-file", "asset_patterns.txt",
+                              "--ignore-internal-url-file", "internal_patterns.txt"])
 
             # Check that LinkChecker was created with the right ignored URLs
-            mock_link_checker_cls.assert_called_once_with("example.html", ["pattern1", "pattern2", "pattern3"], ["pattern4", "pattern5"])
+            mock_link_checker_cls.assert_called_once_with(
+                "example.html", ["pattern1", "pattern2", "pattern3"],
+                ["pattern4", "pattern5"])
 
         # Check exit code
         self.assertEqual(exit_code, 0)
@@ -121,7 +126,8 @@ class TestCLI(unittest.TestCase):
         test_logger.addHandler(handler)
 
         # Use our custom formatter directly
-        formatter = ColoredFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = ColoredFormatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
 
         # Log a test message
@@ -135,7 +141,8 @@ class TestCLI(unittest.TestCase):
         timestamp_pattern = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6}')
         match = timestamp_pattern.search(log_output)
 
-        self.assertIsNotNone(match, f"Log timestamp doesn't match expected format: {log_output}")
+        self.assertIsNotNone(match,
+                             f"Log timestamp doesn't match expected format: {log_output}")
 
         # Extract the timestamp and verify it has a period for microseconds
         timestamp = match.group(0)
@@ -195,7 +202,8 @@ class TestCLI(unittest.TestCase):
             from link_checker.cli import setup_logging
 
             # Set up logging with a log file and log level set to WARNING
-            setup_logging(3, log_path, "WARNING")  # Verbosity 3 = DEBUG, but log file level is WARNING
+            # Verbosity 3 = DEBUG, but log file level is WARNING
+            setup_logging(3, log_path, "WARNING")
 
             # Log some test messages
             import logging
@@ -204,7 +212,8 @@ class TestCLI(unittest.TestCase):
             logging.warning("Warning message")
             logging.error("Error message")
 
-            # Check if the log file was created and contains only WARNING and ERROR messages
+            # Check if the log file was created and contains only WARNING and
+            # ERROR messages
             with open(log_path, 'r') as f:
                 log_content = f.read()
                 print(f"Log content: {log_content}")

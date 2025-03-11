@@ -1,4 +1,4 @@
-# Check Links
+# Link Checker
 
 A Python tool that checks websites for broken links and catalogs internal assets.
 

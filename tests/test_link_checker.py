@@ -165,11 +165,14 @@ class TestLinkChecker(unittest.TestCase):
             ("https://example.com/error", None, None, None, None),
         ]
 
-        for url, content_type, status_code, expected_content, expected_status in test_cases:
+        for (url, content_type, status_code,
+             expected_content, expected_status) in test_cases:
             with self.subTest(url=url):
                 # If this is the error case, simulate an exception
                 if url == "https://example.com/error":
-                    with patch('requests.Session.get', side_effect=requests.RequestException("Connection error")):
+                    with patch('requests.Session.get',
+                               side_effect=requests.RequestException(
+                                   "Connection error")):
                         content, status = self.checker._check_url(url)
                 else:
                     # Create a mock response
@@ -235,7 +238,8 @@ class TestLinkChecker(unittest.TestCase):
                 ["https://example.com/page1", "https://example.com/page2"],
                 {"https://example.com/style.css": "web_asset"}
             ),
-            # Subsequent calls (for the extracted links) - return empty lists to stop recursion
+            # Subsequent calls (for the extracted links) - return empty lists to stop
+            # recursion
             ([], {}),
             ([], {})
         ]
@@ -251,29 +255,38 @@ class TestLinkChecker(unittest.TestCase):
 
         # Check that assets were recorded
         self.assertEqual(
-            self.checker.internal_assets["https://example.com"]["https://example.com/style.css"],
+            self.checker.internal_assets[
+                "https://example.com"]["https://example.com/style.css"],
             "web_asset"
         )
 
     def test_should_ignore_asset(self):
         """Test that assets in ignored paths are correctly identified."""
         # Create a checker with ignored paths
-        checker = LinkChecker("https://example.com", ignored_asset_paths=['/images', '/css'])
+        checker = LinkChecker("https://example.com",
+                              ignored_asset_paths=['/images', '/css'])
 
         # Test URLs that should be ignored
-        self.assertTrue(checker._should_ignore_asset("https://example.com/images/logo.png"))
-        self.assertTrue(checker._should_ignore_asset("https://example.com/css/style.css"))
-        self.assertTrue(checker._should_ignore_asset("https://example.com/images/subfolder/icon.jpg"))
+        self.assertTrue(checker._should_ignore_asset(
+            "https://example.com/images/logo.png"))
+        self.assertTrue(checker._should_ignore_asset(
+            "https://example.com/css/style.css"))
+        self.assertTrue(checker._should_ignore_asset(
+            "https://example.com/images/subfolder/icon.jpg"))
 
         # Test URLs that should not be ignored
-        self.assertFalse(checker._should_ignore_asset("https://example.com/assets/logo.png"))
-        self.assertFalse(checker._should_ignore_asset("https://example.com/js/script.js"))
-        self.assertFalse(checker._should_ignore_asset("https://example.com/image-file.jpg"))  # Not in /images/
+        self.assertFalse(checker._should_ignore_asset(
+            "https://example.com/assets/logo.png"))
+        self.assertFalse(checker._should_ignore_asset(
+            "https://example.com/js/script.js"))
+        self.assertFalse(checker._should_ignore_asset(
+            "https://example.com/image-file.jpg"))  # Not in /images/
 
     def test_extract_links_with_ignored_paths(self):
         """Test that assets in ignored paths are not included."""
         # Create a checker with ignored paths
-        checker = LinkChecker("https://example.com", ignored_asset_paths=['/images', '/css'])
+        checker = LinkChecker("https://example.com",
+                              ignored_asset_paths=['/images', '/css'])
 
         html_content = """
         <html>
@@ -308,19 +321,23 @@ class TestLinkChecker(unittest.TestCase):
         self.assertIn("https://example.com/js/script.js", assets)
 
     def test_should_not_crawl(self):
-        """Test that internal paths that should not be crawled are correctly identified."""
+        """Test that internal paths that should not be crawled are correctly
+        identified."""
         # Create a checker with ignored internal paths
-        checker = LinkChecker("https://example.com", ignored_internal_paths=['/docs', '/blog'])
+        checker = LinkChecker("https://example.com",
+                              ignored_internal_paths=['/docs', '/blog'])
 
         # Test URLs that should not be crawled
         self.assertTrue(checker._should_not_crawl("https://example.com/docs/index.html"))
         self.assertTrue(checker._should_not_crawl("https://example.com/blog/post1.html"))
-        self.assertTrue(checker._should_not_crawl("https://example.com/docs/api/reference.html"))
+        self.assertTrue(checker._should_not_crawl(
+            "https://example.com/docs/api/reference.html"))
 
         # Test URLs that should be crawled
         self.assertFalse(checker._should_not_crawl("https://example.com/index.html"))
         self.assertFalse(checker._should_not_crawl("https://example.com/about.html"))
-        self.assertFalse(checker._should_not_crawl("https://example.com/documentation.html"))  # Not in /docs/
+        self.assertFalse(checker._should_not_crawl(
+            "https://example.com/documentation.html"))  # Not in /docs/
 
     def test_print_report_shows_ignored_paths(self):
         """Test that print_report shows the ignored paths."""
@@ -416,12 +433,15 @@ class TestLinkChecker(unittest.TestCase):
         )
 
         # Test asset URLs that should be ignored
-        self.assertTrue(checker._should_ignore_asset("https://example.com/images/logo.png"))
-        self.assertTrue(checker._should_ignore_asset("https://example.com/css/styles/main.css"))
+        self.assertTrue(
+            checker._should_ignore_asset("https://example.com/images/logo.png"))
+        self.assertTrue(
+            checker._should_ignore_asset("https://example.com/css/styles/main.css"))
 
         # Test URLs that should not be crawled
         self.assertTrue(checker._should_not_crawl("https://example.com/docs/index.html"))
-        self.assertTrue(checker._should_not_crawl("https://example.com/blog/posts/2023/01.html"))
+        self.assertTrue(
+            checker._should_not_crawl("https://example.com/blog/posts/2023/01.html"))
 
         # Test that the original paths with slashes still work
         checker = LinkChecker(
@@ -430,7 +450,8 @@ class TestLinkChecker(unittest.TestCase):
             ignored_internal_paths=["/docs", "/blog/posts"]
         )
 
-        self.assertTrue(checker._should_ignore_asset("https://example.com/images/logo.png"))
+        self.assertTrue(
+            checker._should_ignore_asset("https://example.com/images/logo.png"))
         self.assertTrue(checker._should_not_crawl("https://example.com/docs/index.html"))
 
     def test_is_within_allowed_hierarchy(self):
@@ -439,26 +460,33 @@ class TestLinkChecker(unittest.TestCase):
         checker = LinkChecker("https://example.com/subdir")
 
         # URLs that should be within the allowed hierarchy
-        self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com/subdir"))
-        self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com/subdir/page.html"))
-        self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com/subdir/deeper/page.html"))
+        self.assertTrue(
+            checker._is_within_allowed_hierarchy("https://example.com/subdir"))
+        self.assertTrue(
+            checker._is_within_allowed_hierarchy("https://example.com/subdir/page.html"))
+        self.assertTrue(checker._is_within_allowed_hierarchy(
+            "https://example.com/subdir/deeper/page.html"))
 
         # URLs that should be outside the allowed hierarchy
         self.assertFalse(checker._is_within_allowed_hierarchy("https://example.com"))
-        self.assertFalse(checker._is_within_allowed_hierarchy("https://example.com/other"))
-        self.assertFalse(checker._is_within_allowed_hierarchy("https://example.com/subdirectory"))  # Similar but different
+        self.assertFalse(
+            checker._is_within_allowed_hierarchy("https://example.com/other"))
+        self.assertFalse(checker._is_within_allowed_hierarchy(
+            "https://example.com/subdirectory"))  # Similar but different
 
         # Check that external domains are always allowed (handled separately)
         self.assertTrue(checker._is_within_allowed_hierarchy("https://another-site.com"))
 
         # Test with trailing slashes
         checker = LinkChecker("https://example.com/subdir/")
-        self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com/subdir"))
+        self.assertTrue(
+            checker._is_within_allowed_hierarchy("https://example.com/subdir"))
         self.assertFalse(checker._is_within_allowed_hierarchy("https://example.com"))
 
         # Test with root URL
         checker = LinkChecker("https://example.com")
-        self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com/anything"))
+        self.assertTrue(
+            checker._is_within_allowed_hierarchy("https://example.com/anything"))
         self.assertTrue(checker._is_within_allowed_hierarchy("https://example.com"))
 
     def test_link_checker_respects_hierarchy(self):
@@ -477,7 +505,8 @@ class TestLinkChecker(unittest.TestCase):
             mock_check_url.side_effect = check_url_side_effect
 
             # Mock _extract_links to return URLs both within and outside the hierarchy
-            with patch('link_checker.main.LinkChecker._extract_links') as mock_extract_links:
+            with patch(
+                    'link_checker.main.LinkChecker._extract_links') as mock_extract_links:
                 within_hierarchy = [
                     "https://example.com/subdir/page1.html",
                     "https://example.com/subdir/page2.html",
@@ -490,7 +519,8 @@ class TestLinkChecker(unittest.TestCase):
                 # First call returns all links, subsequent calls return empty lists
                 mock_extract_links.side_effect = [
                     (within_hierarchy + outside_hierarchy, {}),
-                    *[([], {}) for _ in range(len(within_hierarchy) + len(outside_hierarchy))]
+                    *[([], {})
+                      for _ in range(len(within_hierarchy) + len(outside_hierarchy))]
                 ]
 
                 # Run link checking
@@ -584,7 +614,8 @@ class TestLinkChecker(unittest.TestCase):
             # Check a URL without an extension
             checker._check_url("https://example.com/voyager")
 
-            # Both the original URL and the /index.html version should be marked as visited
+            # Both the original URL and the /index.html version should be marked as
+            # visited
             self.assertIn("https://example.com/voyager", checker.visited_urls)
             self.assertIn("https://example.com/voyager/index.html", checker.visited_urls)
 
@@ -592,7 +623,8 @@ class TestLinkChecker(unittest.TestCase):
             checker.visited_urls = set()
             checker._check_url("https://example.com/voyager/index.html")
 
-            # Both the /index.html URL and the directory version should be marked as visited
+            # Both the /index.html URL and the directory version should be marked as
+            # visited
             self.assertIn("https://example.com/voyager/index.html", checker.visited_urls)
             self.assertIn("https://example.com/voyager", checker.visited_urls)
 

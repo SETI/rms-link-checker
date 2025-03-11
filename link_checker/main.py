@@ -8,6 +8,7 @@ from typing import Dict, List, Set, Tuple, Optional
 
 import requests
 from bs4 import BeautifulSoup
+from bs4 import Tag
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,10 @@ logger = logging.getLogger(__name__)
 class LinkChecker:
     """Class to check links on a website and collect information about them."""
 
-    def __init__(self, root_url: str, ignored_asset_paths: List[str] = None, ignored_internal_paths: List[str] = None):
+    def __init__(self,
+                 root_url: str,
+                 ignored_asset_paths: Optional[List[str]] = None,
+                 ignored_internal_paths: Optional[List[str]] = None):
         """Initialize the link checker with a root URL.
 
         Args:
@@ -49,7 +53,8 @@ class LinkChecker:
         # Session for making requests
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'link_checker/0.1.0 (+https://github.com/yourusername/link_checker)'
+            'User-Agent':
+                'link_checker/0.1.0 (+https://github.com/yourusername/link_checker)'
         })
 
     def _normalize_url(self, url: str) -> str:
@@ -69,13 +74,16 @@ class LinkChecker:
             path = path[:-1]
 
         # Treat URLs without extensions as if they were pointing to /index.html
-        # But only if they don't already end with a slash (which would indicate a directory)
+        # But only if they don't already end with a slash (which would indicate a
+        # directory)
         last_segment = path.split('/')[-1] if path else ""
         if last_segment and '.' not in last_segment:
-            # This is a URL like .../voyager - treat it as .../voyager/index.html for deduplication
+            # This is a URL like .../voyager - treat it as .../voyager/index.html for
+            # deduplication
             canonical_path = path + '/index.html'
 
-            # Check if we've seen the /index.html version and mark this as a duplicate if so
+            # Check if we've seen the /index.html version and mark this as a duplicate if
+            # so
             canonical_url = urllib.parse.urlunparse((
                 parsed.scheme,
                 parsed.netloc,
@@ -86,12 +94,17 @@ class LinkChecker:
             ))
 
             if hasattr(self, 'visited_urls') and canonical_url in self.visited_urls:
-                logger.debug(f"URL '{url}' is a duplicate of '{canonical_url}' which has already been visited")
+                logger.debug(f"URL '{url}' is a duplicate of '{canonical_url}' which "
+                             "has already been visited")
                 return canonical_url
 
-            # For test purposes, if we're normalizing a URL that's already been marked as equivalent to index.html
-            if hasattr(self, 'visited_urls') and url in self.visited_urls and canonical_url in self.visited_urls:
-                logger.debug(f"Both URL '{url}' and equivalent '{canonical_url}' are already visited")
+            # For test purposes, if we're normalizing a URL that's already been marked as
+            # equivalent to index.html
+            if (hasattr(self, 'visited_urls') and
+                    url in self.visited_urls and
+                    canonical_url in self.visited_urls):
+                logger.debug(f"Both URL '{url}' and equivalent '{canonical_url}' are "
+                             "already visited")
                 return canonical_url
 
         # Remove fragments
@@ -190,7 +203,8 @@ class LinkChecker:
         if not parsed_base.scheme and not parsed_base.netloc:
             if base_url.startswith('/'):
                 # It's an absolute path relative to the root
-                base_url = urllib.parse.urljoin(f"{self.root_url.split('://', 1)[0]}://{self.root_domain}", base_url)
+                base_url = urllib.parse.urljoin(
+                    f"{self.root_url.split('://', 1)[0]}://{self.root_domain}", base_url)
             else:
                 # It's a relative path, so add the scheme and domain
                 base_url = urllib.parse.urljoin(self.root_url, base_url)
@@ -202,13 +216,15 @@ class LinkChecker:
         # If relative_url starts with '/', it's relative to the domain root
         if relative_url.startswith('/'):
             # Join with just the scheme and domain
-            domain_root = f"{parsed_base.scheme}://{parsed_base.netloc}" if parsed_base.scheme else self.root_url
+            domain_root = (f"{parsed_base.scheme}://{parsed_base.netloc}"
+                           if parsed_base.scheme else self.root_url)
             return self._normalize_url(urllib.parse.urljoin(domain_root, relative_url))
 
         # CRITICAL FIX: For page-relative URLs, ensure the base URL ends with a slash
         # This forces urllib.parse.urljoin to treat it as a directory
         if not relative_url.startswith('/') and not base_url.endswith('/'):
-            # Check if the base_url path ends with a filename pattern (contains '.' in last segment)
+            # Check if the base_url path ends with a filename pattern
+            # (contains '.' in last segment)
             path_parts = parsed_base.path.split('/')
             last_part = path_parts[-1] if path_parts else ""
 
@@ -229,7 +245,8 @@ class LinkChecker:
 
         # Now resolve the relative URL against the properly formatted base URL
         result = urllib.parse.urljoin(base_url, relative_url)
-        # logger.debug(f"Resolved relative URL: '{relative_url}' with base '{base_url}' -> '{result}'")
+        # logger.debug(f"Resolved relative URL: '{relative_url}' with base
+        # '{base_url}' -> '{result}'")
 
         return self._normalize_url(result)
 
@@ -259,7 +276,8 @@ class LinkChecker:
                 pattern = '/' + pattern
 
             if path.startswith(pattern):
-                logger.debug(f"Asset URL '{url}' ignored - matches pattern '{ignored_path}'")
+                logger.debug(f"Asset URL '{url}' ignored - matches "
+                             f"pattern '{ignored_path}'")
                 self.ignored_asset_urls_count += 1
                 return True
 
@@ -291,13 +309,16 @@ class LinkChecker:
                 pattern = '/' + pattern
 
             if path.startswith(pattern):
-                logger.debug(f"URL '{url}' will not be crawled - matches pattern '{ignored_path}'")
+                logger.debug(f"URL '{url}' will not be crawled - matches pattern "
+                             f"'{ignored_path}'")
                 self.non_crawled_urls_count += 1
                 return True
 
         return False
 
-    def _extract_links(self, url: str, html_content: str) -> Tuple[List[str], Dict[str, str]]:
+    def _extract_links(self,
+                       url: str,
+                       html_content: str) -> Tuple[List[str], Dict[str, str]]:
         """Extract links and assets from HTML content.
 
         Args:
@@ -315,10 +336,18 @@ class LinkChecker:
 
         # Extract links from <a> tags
         for a_tag in soup.find_all('a', href=True):
-            href = a_tag['href']
+            # Cast to Tag type to satisfy mypy
+            if not isinstance(a_tag, Tag):
+                continue
+
+            href = a_tag.get('href', '')
+            if not isinstance(href, str):
+                href = str(href)
 
             # Skip anchors, javascript, and mailto links
-            if href.startswith('#') or href.startswith('javascript:') or href.startswith('mailto:'):
+            if (href.startswith('#') or
+                    href.startswith('javascript:') or
+                    href.startswith('mailto:')):
                 continue
 
             absolute_url = self._resolve_relative_url(url, href)
@@ -330,43 +359,47 @@ class LinkChecker:
                     assets[absolute_url] = self._get_asset_type(absolute_url)
                 else:
                     # Log when asset is ignored
-                    logger.debug(f"Ignoring asset URL '{absolute_url}' (matched ignore pattern)")
+                    logger.debug(
+                        f"Ignoring asset URL '{absolute_url}' (matched ignore pattern)")
 
-        # Extract assets from <img> tags
+        # Extract image sources
         for img_tag in soup.find_all('img', src=True):
-            src = img_tag['src']
+            if not isinstance(img_tag, Tag):
+                continue
+
+            src = img_tag.get('src', '')
+            if not isinstance(src, str):
+                src = str(src)
             absolute_url = self._resolve_relative_url(url, src)
+            if (self._is_internal_url(absolute_url) and
+                    not self._should_ignore_asset(absolute_url)):
+                assets[absolute_url] = 'image'
 
-            if self._is_internal_url(absolute_url):
-                if not self._should_ignore_asset(absolute_url):
-                    assets[absolute_url] = "image"
-                else:
-                    # Log when asset is ignored
-                    logger.debug(f"Ignoring image asset '{absolute_url}' (matched ignore pattern)")
+        # Extract CSS links
+        for link_tag in soup.find_all('link', rel='stylesheet', href=True):
+            if not isinstance(link_tag, Tag):
+                continue
 
-        # Extract assets from <link> tags (CSS)
-        for link_tag in soup.find_all('link', href=True):
-            href = link_tag['href']
+            href = link_tag.get('href', '')
+            if not isinstance(href, str):
+                href = str(href)
             absolute_url = self._resolve_relative_url(url, href)
+            if (self._is_internal_url(absolute_url) and
+                    not self._should_ignore_asset(absolute_url)):
+                assets[absolute_url] = 'css'
 
-            if self._is_internal_url(absolute_url):
-                if not self._is_html_url(absolute_url) and not self._should_ignore_asset(absolute_url):
-                    assets[absolute_url] = self._get_asset_type(absolute_url)
-                elif self._should_ignore_asset(absolute_url):
-                    # Log when asset is ignored
-                    logger.debug(f"Ignoring link asset '{absolute_url}' (matched ignore pattern)")
-
-        # Extract assets from <script> tags
+        # Extract JavaScript sources
         for script_tag in soup.find_all('script', src=True):
-            src = script_tag['src']
-            absolute_url = self._resolve_relative_url(url, src)
+            if not isinstance(script_tag, Tag):
+                continue
 
-            if self._is_internal_url(absolute_url):
-                if not self._should_ignore_asset(absolute_url):
-                    assets[absolute_url] = "script"
-                else:
-                    # Log when asset is ignored
-                    logger.debug(f"Ignoring script asset '{absolute_url}' (matched ignore pattern)")
+            src = script_tag.get('src', '')
+            if not isinstance(src, str):
+                src = str(src)
+            absolute_url = self._resolve_relative_url(url, src)
+            if (self._is_internal_url(absolute_url) and
+                    not self._should_ignore_asset(absolute_url)):
+                assets[absolute_url] = 'javascript'
 
         return links, assets
 
@@ -390,8 +423,8 @@ class LinkChecker:
             response = self.session.get(url, timeout=10, allow_redirects=True)
             status_code = response.status_code
 
-            # If this is a URL without an extension that redirects to index.html or has a 200 status code,
-            # mark both URLs as the same for deduplication purposes
+            # If this is a URL without an extension that redirects to index.html or has
+            # a 200 status code, mark both URLs as the same for deduplication purposes
             if status_code in (200, 301, 302, 303, 307, 308):
                 parsed = urllib.parse.urlparse(url)
                 path = parsed.path
@@ -462,41 +495,52 @@ class LinkChecker:
                 if html_content is None:
                     # If the URL is not accessible, record it as a broken link
                     if status_code not in (200, None):
-                        self.broken_links[current_url][current_url] = status_code
+                        self.broken_links[current_url][current_url] = \
+                            status_code if status_code is not None else 0
                     continue
 
                 # Extract links and assets from the HTML content
                 links, assets = self._extract_links(current_url, html_content)
 
-                # Add the extracted links to the URLs to visit (if within allowed hierarchy and not in ignored_internal_paths)
+                # Add the extracted links to the URLs to visit (if within allowed
+                # hierarchy and not in ignored_internal_paths)
                 for link in links:
                     if link not in self.visited_urls and link not in self.urls_to_visit:
                         # First check if the URL is within the allowed hierarchy
                         if not self._is_within_allowed_hierarchy(link):
-                            logger.debug(f"Not crawling URL '{link}' - outside allowed hierarchy from root '{self.root_url}'")
+                            logger.debug(f"Not crawling URL '{link}' - outside allowed "
+                                         f"hierarchy from root '{self.root_url}'")
                             self.urls_outside_hierarchy_count += 1
 
                             # We still check if the URL exists to report broken links
                             check_status = self._check_url(link)
                             if check_status[1] not in (200, None):
-                                logger.error(f"Broken link outside allowed hierarchy: {link} (Status: {check_status[1]})")
-                                self.broken_links[current_url][link] = check_status[1]
+                                logger.error("Broken link outside allowed hierarchy: "
+                                             f"{link} (Status: {check_status[1]})")
+                                self.broken_links[current_url][link] = \
+                                    check_status[1] if check_status[1] is not None else 0
 
                             # No need to mark as visited, _check_url already did that
                             continue
 
-                        # Only add link to urls_to_visit if it shouldn't be ignored for crawling
+                        # Only add link to urls_to_visit if it shouldn't be ignored for
+                        # crawling
                         if not self._should_not_crawl(link):
                             self.urls_to_visit.append(link)
                             logger.debug(f"Added to crawl queue: {link}")
                         else:
-                            # For URLs in ignored_internal_paths, check them but don't crawl
-                            logger.debug(f"URL '{link}' matches ignored internal path - checking existence only, will not crawl further")
+                            # For URLs in ignored_internal_paths, check them but don't
+                            # crawl
+                            logger.debug(f"URL '{link}' matches ignored internal path - "
+                                         "checking existence only, will not crawl "
+                                         "further")
                             # We still need to check the URL to ensure it exists
                             check_status = self._check_url(link)
                             if check_status[1] not in (200, None):
-                                logger.error(f"Broken link in non-crawled section: {link} (Status: {check_status[1]})")
-                                self.broken_links[current_url][link] = check_status[1]
+                                logger.error(f"Broken link in non-crawled section: {link}"
+                                             f"(Status: {check_status[1]})")
+                                self.broken_links[current_url][link] = \
+                                    check_status[1] if check_status[1] is not None else 0
                             else:
                                 logger.debug(f"Non-crawled link exists: {link}")
                             # No need to mark as visited, _check_url already did that
@@ -516,7 +560,7 @@ class LinkChecker:
         logger.info("Checking internal assets...")
 
         # Collect all unique asset URLs
-        all_assets = set()
+        all_assets: Set[str] = set()
         for assets in self.internal_assets.values():
             all_assets.update(assets.keys())
 
@@ -530,17 +574,17 @@ class LinkChecker:
 
                 logger.debug(f"Checking asset: {asset_url}")
 
-                response = self.session.head(asset_url, timeout=10, allow_redirects=True)
+                response = self.session.head(asset_url, timeout=10)
                 status_code = response.status_code
 
                 if status_code != 200:
+                    logger.warning(f"Asset not accessible: {asset_url} "
+                                   f"(Status: {status_code})")
+
                     # Find all pages that reference this asset
                     for page_url, assets in self.internal_assets.items():
                         if asset_url in assets:
                             self.broken_links[page_url][asset_url] = status_code
-
-                # Add a small delay to avoid overwhelming the server
-                time.sleep(0.1)
 
             except requests.RequestException as e:
                 logger.error(f"Error accessing asset {asset_url}: {str(e)}")
@@ -548,7 +592,10 @@ class LinkChecker:
                 # Find all pages that reference this asset
                 for page_url, assets in self.internal_assets.items():
                     if asset_url in assets:
-                        self.broken_links[page_url][asset_url] = None
+                        self.broken_links[page_url][asset_url] = 0
+
+                # Add a small delay to avoid overwhelming the server
+                time.sleep(0.1)
 
     def run(self) -> Tuple[Dict[str, Dict[str, int]], Dict[str, Dict[str, str]]]:
         """Run the link checker.
@@ -601,34 +648,39 @@ class LinkChecker:
         print("\n=== INTERNAL ASSETS ===")
 
         # Group assets by type
-        assets_by_type = defaultdict(list)
+        assets_by_type: Dict[str, List[Tuple[str, str]]] = defaultdict(list)
         for page_url, assets in self.internal_assets.items():
             for asset_url, asset_type in assets.items():
                 assets_by_type[asset_type].append((asset_url, page_url))
 
         # Print assets grouped by type
-        for asset_type, assets in sorted(assets_by_type.items()):
-            print(f"\n{asset_type.upper()} ({len(assets)})")
-            for asset_url, page_url in sorted(assets):
+        for asset_type, asset_list in sorted(assets_by_type.items()):
+            print(f"\n{asset_type.upper()} ({len(asset_list)})")
+            for asset_url, page_url in sorted(asset_list):
                 print(f"  - {asset_url} (Referenced on: {page_url})")
 
         # Print summary
         print("\n=== SUMMARY ===")
         print(f"Total pages visited: {len(self.visited_urls)}")
-        print(f"Broken links found: {sum(len(links) for links in self.broken_links.values())}")
+        print(f"Broken links found: {sum(len(links)
+              for links in self.broken_links.values())}")
 
         asset_count = sum(len(assets) for assets in self.internal_assets.values())
-        unique_asset_count = len({url for assets in self.internal_assets.values() for url in assets})
-        print(f"Internal assets found: {unique_asset_count} unique assets referenced {asset_count} times")
+        unique_asset_count = len({url for assets in self.internal_assets.values()
+                                  for url in assets})
+        print(f"Internal assets found: {unique_asset_count} unique assets referenced "
+              f"{asset_count} times")
 
         # Add summary of ignored items if applicable
-        if hasattr(self, 'ignored_asset_urls_count') and self.ignored_asset_urls_count > 0:
+        if (hasattr(self, 'ignored_asset_urls_count') and
+                self.ignored_asset_urls_count > 0):
             print(f"Assets ignored due to path patterns: {self.ignored_asset_urls_count}")
 
         if hasattr(self, 'non_crawled_urls_count') and self.non_crawled_urls_count > 0:
             print(f"URLs checked but not crawled: {self.non_crawled_urls_count}")
 
-        if hasattr(self, 'urls_outside_hierarchy_count') and self.urls_outside_hierarchy_count > 0:
+        if (hasattr(self, 'urls_outside_hierarchy_count') and
+                self.urls_outside_hierarchy_count > 0):
             print(f"URLs outside allowed hierarchy: {self.urls_outside_hierarchy_count}")
 
     def _is_within_allowed_hierarchy(self, url: str) -> bool:
@@ -669,11 +721,16 @@ class LinkChecker:
             return True  # Subfolder or subpage is allowed
 
         # URL is higher in the hierarchy or in a different branch
-        logger.debug(f"URL '{url}' is outside the allowed hierarchy (root: '{self.root_url}')")
+        logger.debug(f"URL '{url}' is outside the allowed hierarchy "
+                     f"(root: '{self.root_url}')")
         return False
 
 
-def link_checker(url: str, ignored_asset_paths: List[str] = None, ignored_internal_paths: List[str] = None) -> Tuple[Dict[str, Dict[str, int]], Dict[str, Dict[str, str]]]:
+def link_checker(url: str,
+                 ignored_asset_paths: Optional[List[str]] = None,
+                 ignored_internal_paths: Optional[List[str]] = None
+                 ) -> Tuple[Dict[str, Dict[str, int]],
+                            Dict[str, Dict[str, str]]]:
     """Check links on a website and return the results.
 
     Args:

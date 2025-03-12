@@ -55,6 +55,9 @@ class LinkChecker:
         self.max_threads = max_threads
         self.request_count = 0
 
+        # Counter for actual visited pages (not including duplicates)
+        self.actual_visited_pages_count = 0
+
         # Store visited URLs to avoid duplicates
         self.visited_urls: Set[str] = set()
 
@@ -71,7 +74,7 @@ class LinkChecker:
         # Store URLs to visit
         self.urls_to_visit: List[str] = [self.root_url]
         self.urls_to_visit_queue: queue.Queue = queue.Queue()
-        self.urls_to_visit_queue.put((self.root_url, 0))  # URL and depth
+        self.urls_to_visit_queue.put((self.root_url, 0, ""))  # URL, depth, and referring URL
 
         # Store broken links: {url_where_found: {broken_url: status_code}}
         self.broken_links: Dict[str, Dict[str, int]] = defaultdict(dict)
@@ -103,6 +106,9 @@ class LinkChecker:
             'User-Agent':
                 'link_checker/0.1.0 (+https://github.com/yourusername/link_checker)'
         })
+
+        # Save the start time when initialized
+        self.start_time = time.time()
 
     def _normalize_url(self, url: str) -> str:
         """Normalize the URL to avoid duplicates.
@@ -630,7 +636,7 @@ class LinkChecker:
                         logger.warning(f"Reached maximum number of requests ({self.max_requests}). Stopping.")
                         return
 
-                current_url, current_depth = url_depth_tuple
+                current_url, current_depth, referring_url = url_depth_tuple
                 current_url_ = current_url.rstrip('/')
 
                 # Skip if we've reached the maximum depth
@@ -659,11 +665,18 @@ class LinkChecker:
 
                 if html_content is None:
                     # If the URL is not accessible, record it as a broken link
-                    if status_code not in (200, None):
+                    if status_code != 200:
                         with self.broken_links_lock:
-                            self.broken_links[current_url_][current_url] = \
+                            # For the initial URL, use 'root' as the referring page
+                            # or use the referring URL passed from the queue
+                            referring_page = 'root' if referring_url == "" else referring_url
+                            self.broken_links[referring_page][current_url] = \
                                 status_code if status_code is not None else 0
                     return
+
+                # If we got HTML content, increment the actual visited pages counter
+                with self.counter_lock:
+                    self.actual_visited_pages_count += 1
 
                 # Extract links and assets from the HTML content
                 links = self._extract_links(current_url, html_content)
@@ -700,7 +713,7 @@ class LinkChecker:
                         # Only add link to urls_to_visit if it shouldn't be ignored for crawling
                         if not self._should_not_crawl(link):
                             # Add to queue with depth increased by 1
-                            self.urls_to_visit_queue.put((link, current_depth + 1))
+                            self.urls_to_visit_queue.put((link, current_depth + 1, current_url))
                             logging.debug(f"Added to crawl queue: {link} "
                                           f"(depth: {current_depth + 1})")
                         else:
@@ -714,7 +727,7 @@ class LinkChecker:
                             futures.append(check_future)
 
             # Submit initial URL
-            initial_future = executor.submit(process_url, (self.root_url, 0))
+            initial_future = executor.submit(process_url, (self.root_url, 0, ""))
             futures.append(initial_future)
 
             # Process URLs as they are added to the queue
@@ -741,9 +754,9 @@ class LinkChecker:
                 if requests_available and not self.urls_to_visit_queue.empty():
                     try:
                         # Get next URL from queue (non-blocking)
-                        url_depth = self.urls_to_visit_queue.get_nowait()
+                        url_depth_referring = self.urls_to_visit_queue.get_nowait()
                         # Submit new task
-                        new_future = executor.submit(process_url, url_depth)
+                        new_future = executor.submit(process_url, url_depth_referring)
                         futures.append(new_future)
                     except queue.Empty:
                         # Queue was empty, just continue
@@ -773,7 +786,7 @@ class LinkChecker:
                 if self.request_count % 100 == 0:
                     logging.info(f"Request #{self.request_count}: Checking URL {url}")
 
-        if check_status[1] not in (200, None):
+        if check_status[1] != 200:
             logging.error(f"Broken link: {url} (Status: {check_status[1]})")
             with self.broken_links_lock:
                 self.broken_links[referring_url][url] = \
@@ -867,7 +880,8 @@ class LinkChecker:
 
                         # Use semaphore to limit concurrent requests
                         with request_semaphore:
-                            response = self.session.head(asset_url, timeout=self.timeout)
+                            response = self.session.head(asset_url, timeout=self.timeout,
+                                                         allow_redirects=True)
                             status_code = response.status_code
                             with self.request_count_lock:
                                 self.request_count += 1
@@ -1121,7 +1135,7 @@ class LinkChecker:
 
         # Print summary
         print("\n=== SUMMARY ===")
-        print(f"Total pages visited: {len(self.visited_urls)}")
+        print(f"Total pages visited: {self.actual_visited_pages_count}")
         print("Broken links found: "
               f"{sum(len(links) for links in self.broken_links.values())}")
 
@@ -1147,6 +1161,10 @@ class LinkChecker:
 
         if hasattr(self, 'above_root_urls_count') and self.above_root_urls_count > 0:
             print(f"URLs above root on same host: {self.above_root_urls_count}")
+
+        # Print elapsed time
+        elapsed_time = time.time() - self.start_time
+        print(f"\nTotal execution time: {elapsed_time:.2f} seconds")
 
     def _is_within_allowed_hierarchy(self, url: str) -> bool:
         """Check if a URL is within the allowed hierarchy (not higher than the root URL).

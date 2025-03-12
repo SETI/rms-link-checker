@@ -1,8 +1,8 @@
+#!/usr/bin/env python3
 """Command-line interface for the link checker."""
 
 import argparse
 import logging
-from pathlib import Path
 import sys
 from typing import List, Optional
 
@@ -11,7 +11,7 @@ from colorama import init as colorama_init, Fore, Style
 from link_checker.main import LinkChecker
 
 try:
-    from link_checker._version import __version__
+    from link_checker._version import __version__  # type: ignore
 except ImportError:  # pragma: no cover
     __version__ = 'Version unspecified'
 
@@ -203,6 +203,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Maximum depth to crawl (default: unlimited)."
     )
     parser.add_argument(
+        "--max-threads",
+        type=int,
+        default=10,
+        help="Maximum number of concurrent threads for requests (default: 10)."
+    )
+    parser.add_argument(
         "--ignore-asset-url-file",
         default=None,
         help="URL pattern to ignore for assets. Can be used multiple times."
@@ -212,7 +218,25 @@ def create_parser() -> argparse.ArgumentParser:
         default=None,
         help="URL pattern to ignore for internal links. Can be used multiple times."
     )
+    parser.add_argument(
+        "--ignore-external-links-file",
+        default=None,
+        help="File with external links to ignore in reporting, one per line."
+    )
     return parser
+
+
+def read_list_from_file(file_path: str) -> List[str]:
+    """Read a list of items from a file, one per line.
+
+    Args:
+        file_path: Path to the file.
+
+    Returns:
+        A list of strings, one per line in the file.
+    """
+    with open(file_path, 'r') as f:
+        return [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
 
 def main(args: Optional[List[str]] = None) -> int:
@@ -235,36 +259,51 @@ def main(args: Optional[List[str]] = None) -> int:
             logging.info(f"Logs will be written to: {parsed_args.log_file}")
 
         # Read ignored paths from files
-        ignored_asset_paths = []
-        if parsed_args.ignore_asset_url_file:
-            ignored_asset_paths = (Path(parsed_args.ignore_asset_url_file)
-                                   .read_text().splitlines())
-            logging.info(f"Loaded {len(ignored_asset_paths)} asset paths to ignore")
+        ignored_asset_paths = None
+        ignored_internal_paths = None
+        ignored_external_links = None
 
-        ignored_internal_paths = []
+        if parsed_args.ignore_asset_url_file:
+            try:
+                ignored_asset_paths = read_list_from_file(parsed_args.ignore_asset_url_file)
+                logging.info(f"Loaded {len(ignored_asset_paths)} asset paths to ignore")
+            except Exception as e:
+                logging.error(f"Error reading ignored asset paths file: {e}")
+                return 1
+
         if parsed_args.ignore_internal_url_file:
-            ignored_internal_paths = (Path(parsed_args.ignore_internal_url_file)
-                                      .read_text().splitlines())
-            logging.info(f"Loaded {len(ignored_internal_paths)} asset paths to ignore")
+            try:
+                ignored_internal_paths = read_list_from_file(parsed_args.ignore_internal_url_file)
+                logging.info(f"Loaded {len(ignored_internal_paths)} asset paths to ignore")
+            except Exception as e:
+                logging.error(f"Error reading ignored internal paths file: {e}")
+                return 1
+
+        if parsed_args.ignore_external_links_file:
+            try:
+                ignored_external_links = read_list_from_file(parsed_args.ignore_external_links_file)
+                logging.info(f"Loaded {len(ignored_external_links)} external links to ignore")
+            except Exception as e:
+                logging.error(f"Error reading ignored external links file: {e}")
+                return 1
 
         # Create a link checker
         checker = LinkChecker(parsed_args.root_url,
-                              ignored_asset_paths,
-                              ignored_internal_paths,
+                              ignored_asset_paths or [],
+                              ignored_internal_paths or [],
+                              ignored_external_links=ignored_external_links,
                               timeout=parsed_args.timeout,
                               max_requests=parsed_args.max_requests,
-                              max_depth=parsed_args.max_depth)
+                              max_depth=parsed_args.max_depth,
+                              max_threads=parsed_args.max_threads)
 
         logging.info(f"Starting link checker with: timeout={parsed_args.timeout}s, "
                      f"max_requests={parsed_args.max_requests}, "
-                     f"max_depth={parsed_args.max_depth}")
+                     f"max_depth={parsed_args.max_depth}, "
+                     f"max_threads={parsed_args.max_threads}")
 
         # Run the link checker
-        try:
-            checker.link_checker()
-            checker.check_assets()
-        except KeyboardInterrupt:
-            logging.info("Link checking interrupted by user")
+        checker.run()
 
         # Redirect output to a file if specified
         if parsed_args.output:

@@ -11,7 +11,7 @@ from colorama import init as colorama_init, Fore, Style
 from link_checker.main import LinkChecker
 
 try:
-    from link_checker._version import __version__
+    from link_checker._version import __version__  # type: ignore
 except ImportError:  # pragma: no cover
     __version__ = 'Version unspecified'
 

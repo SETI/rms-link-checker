@@ -1049,7 +1049,8 @@ class LinkChecker:
         print("=== CONFIGURATION ===")
         print(f"Root URL: {self.root_url}")
         print(f"Timeout: {self.timeout} seconds")
-        print(f"Max requests: {'unlimited' if self.max_requests is None else self.max_requests}")
+        print("Max requests: "
+              f"{'unlimited' if self.max_requests is None else self.max_requests}")
         print(f"Max depth: {'unlimited' if self.max_depth is None else self.max_depth}")
         print(f"Max threads: {self.max_threads}")
 

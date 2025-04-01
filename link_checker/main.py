@@ -628,8 +628,6 @@ class LinkChecker:
 
             # Function to process a URL
             def process_url(url_depth_tuple):
-                nonlocal futures
-
                 # Check if we've reached the maximum number of requests
                 with self.request_count_lock:
                     if self.max_requests is not None and self.request_count >= self.max_requests:

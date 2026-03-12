@@ -3,28 +3,27 @@ requires = ["setuptools", "setuptools_scm[toml]"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rms-link-checker"
+name = "REPONAME"
 dynamic = ["version"]
-description = "A tool for checking broken links and cataloging internal assets on websites"
+description = "TODO"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
-  "beautifulsoup4",
-  "colorama",
-  "requests"
+  "TODO"
 ]
 license = {text = "Apache-2.0"}
 maintainers = [
   {name = "Robert S. French", email = "rfrench@seti.org"}
 ]
-keywords = ["link checker"]
+keywords = ["TODO"]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Natural Language :: English",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Astronomy",
+  "Topic :: Software Development :: Libraries :: Python Modules",
   "Topic :: Utilities",
   "License :: OSI Approved :: Apache Software License",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -35,21 +34,107 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/SETI/rms-link-checker"
-Documentation = "https://rms-link-checker.readthedocs.io/en/latest"
-Repository = "https://github.com/SETI/rms-link-checker"
-Source = "https://github.com/SETI/rms-link-checker"
-Issues = "https://github.com/SETI/rms-link-checker/issues"
+Homepage = "https://github.com/SETI/REPONAME"
+Documentation = "https://REPONAME.readthedocs.io/en/latest"
+Repository = "https://github.com/SETI/REPONAME"
+Source = "https://github.com/SETI/REPONAME"
+Issues = "https://github.com/SETI/REPONAME/issues"
 
-[project.scripts]
-link_checker = "link_checker.cli:main"
+[tool.pytest.ini_options]
+pythonpath = [
+  "src"
+]
 
 [tool.setuptools]
-packages = ["link_checker"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
-"link_checker" = ["py.typed"]
+"TODO" = ["py.typed"]
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"
-write_to = "link_checker/_version.py"
+write_to = "TODO/_version.py"
+
+[project.optional-dependencies]
+dev = [
+  "coverage>=7.0",
+  "mypy>=1.0",
+  "myst-parser",
+  "pymarkdownlnt>=0.9.35",
+  "pytest>=7.0",
+  "pytest-cov>=4.0",
+  "pytest-profiling>=1.8.1",
+  "pytest-xdist>=3.8.0",
+  "ruff>=0.8",
+  "sphinx>=7",
+  "sphinxcontrib-mermaid",
+  "sphinx-rtd-theme",
+]
+docs = [
+  "myst-parser",
+  "sphinx>=7",
+  "sphinxcontrib-mermaid",
+  "sphinx-rtd-theme",
+]
+
+[project.scripts]
+#TODO = "main.TODO:main"
+
+# Tool configuration
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "def __repr__",
+  "raise NotImplementedError",
+]
+
+[tool.mypy]
+strict = true
+disallow_subclassing_any = false
+
+[[tool.mypy.overrides]]
+module = "TODO._version"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# module = ["TODO.*"]
+# ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+exclude = [
+#  "TODO"
+]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+# Explicit rule set (recommended for library projects). Categories:
+# E, W = pycodestyle errors/warnings; F = Pyflakes; I = isort; UP = pyupgrade;
+# B = bugbear; SIM = simplify; C4 = comprehensions; A = builtins (no shadowing);
+# N = pep8-naming; PT = pytest-style; RUF = Ruff-specific (e.g. unused noqa).
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "A", "N", "PT", "RUF"]
+# PT011 - pytest.raises is too broad.
+# SIM105 - Use contextlib.suppress for suppressions.
+# SIM108 - Use ternary operator for simple if/else.
+extend-ignore = ["PT011", "SIM105", "SIM108"]
+
+[tool.ruff.lint.per-file-ignores]
+#"TODO" = ["TODO"]
+
+[tool.pymarkdown.plugins.md013]
+# Line length (disable so README/CONTRIBUTING can use longer lines).
+enabled = false
+
+[tool.pymarkdown.plugins.md033]
+# Inline HTML (e.g. <br>) allowed in Markdown.
+enabled = false

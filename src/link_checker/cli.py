@@ -29,7 +29,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help='Root URL to begin crawling (may also be set in the config file).',
     )
     parser.add_argument(
-        '-o', '--output',
+        '-o',
+        '--output',
         default=None,
         metavar='PATH',
         help='File path for the final plain-text report (default: stdout).',

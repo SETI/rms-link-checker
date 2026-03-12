@@ -12,7 +12,7 @@ on:
 
 jobs:
   lint:
-    name: Lint REPONAME
+    name: Lint rms-link-checker
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -48,7 +48,7 @@ jobs:
           pymarkdown scan docs/ .cursor/ README.md CONTRIBUTING.md
 
   test:
-    name: Test REPONAME
+    name: Test rms-link-checker
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

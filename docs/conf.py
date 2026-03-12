@@ -12,13 +12,13 @@ sys.path.insert(0, os.path.abspath('../src'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'REPONAME'
+project = 'rms-link-checker'
 copyright = '2025, SETI Institute'
 author = 'SETI Institute'
 
 # The full version, including alpha/beta/rc tags
 try:
-    release = importlib.metadata.version('rms-xxx')
+    release = importlib.metadata.version('rms-link-checker')
 except importlib.metadata.PackageNotFoundError:
     release = '1.0.0'  # fallback for development
 
@@ -56,13 +56,13 @@ html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
 
 add_module_names = False
-autodoc_typehints_format = "short"
+autodoc_typehints_format = 'short'
 
 # -- Extension configuration -------------------------------------------------
 
 # Napoleon settings
 napoleon_google_docstring = True
-napoleon_numpy_docstring = True
+napoleon_numpy_docstring = False
 napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
 napoleon_include_special_with_doc = True
@@ -79,16 +79,15 @@ napoleon_attr_annotations = True
 # Intersphinx settings
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
-    'numpy': ('https://numpy.org/doc/stable/', None),
-    'matplotlib': ('https://matplotlib.org/stable/', None),
+    'requests': ('https://requests.readthedocs.io/en/latest/', None),
 }
 
 # MyST-Parser settings
 myst_enable_extensions = [
-    "colon_fence",
-    "deflist",
+    'colon_fence',
+    'deflist',
 ]
 
 # Mermaid settings
-mermaid_output_format = "svg"
+mermaid_output_format = 'svg'
 mermaid_d3_zoom = True

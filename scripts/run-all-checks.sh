@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# REPONAME - Run All Checks Script
+# rms-link-checker - Run All Checks Script
 #
 # This script runs linting, type checking, tests, Sphinx build, and
 # Markdown lint as separate checks. In parallel mode all requested
@@ -182,7 +182,7 @@ fi
 
 START_TIME=$(date +%s)
 
-print_header "REPONAME - Running All Checks"
+print_header "rms-link-checker - Running All Checks"
 
 if [ "$PARALLEL" = true ]; then
     print_info "Running checks in PARALLEL mode"

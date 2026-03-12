@@ -1,7 +1,5 @@
-.. RMS-XXX documentation master file
-
-Welcome to the Documentation for RMS-XXX!
-=========================================
+Welcome to rms-link-checker!
+============================
 
 .. include:: ../README.md
    :parser: myst_parser.sphinx_
@@ -9,9 +7,24 @@ Welcome to the Documentation for RMS-XXX!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: User's Guide:
 
-   module
+   user/installation
+   user/usage
+   user/configuration
+   user/report
+   user/troubleshooting
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer's Guide:
+
+   dev/setup
+   dev/architecture
+   dev/api
+   dev/testing
+   dev/contributing
+   dev/releasing
 
 Indices and tables
 ==================

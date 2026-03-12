@@ -1,97 +1,93 @@
-# REPONAME
+# rms-link-checker
 
 <!-- pyml disable MD025 -->
 
-[![GitHub release; latest by date](https://img.shields.io/github/v/release/SETI/REPONAME)](https://github.com/SETI/REPONAME/releases)
-[![GitHub Release Date](https://img.shields.io/github/release-date/SETI/REPONAME)](https://github.com/SETI/REPONAME/releases)
-[![Test Status](https://img.shields.io/github/actions/workflow/status/SETI/REPONAME/run-tests.yml?branch=main)](https://github.com/SETI/REPONAME/actions)
-[![Documentation Status](https://readthedocs.org/projects/REPONAME/badge/?version=latest)](https://REPONAME.readthedocs.io/en/latest/?badge=latest)
-[![Code coverage](https://img.shields.io/codecov/c/github/SETI/REPONAME/main?logo=codecov)](https://codecov.io/gh/SETI/REPONAME)
+[![GitHub release; latest by date](https://img.shields.io/github/v/release/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/releases)
+[![GitHub Release Date](https://img.shields.io/github/release-date/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/releases)
+[![Test Status](https://img.shields.io/github/actions/workflow/status/SETI/rms-link-checker/run-tests.yml?branch=main)](https://github.com/SETI/rms-link-checker/actions)
+[![Documentation Status](https://readthedocs.org/projects/rms-link-checker/badge/?version=latest)](https://rms-link-checker.readthedocs.io/en/latest/?badge=latest)
+[![Code coverage](https://img.shields.io/codecov/c/github/SETI/rms-link-checker/main?logo=codecov)](https://codecov.io/gh/SETI/rms-link-checker)
 <br />
-[![PyPI - Version](https://img.shields.io/pypi/v/REPONAME)](https://pypi.org/project/REPONAME)
-[![PyPI - Format](https://img.shields.io/pypi/format/REPONAME)](https://pypi.org/project/REPONAME)
-[![PyPI - Downloads](https://img.shields.io/pypi/dm/REPONAME)](https://pypi.org/project/REPONAME)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/REPONAME)](https://pypi.org/project/REPONAME)
+[![PyPI - Version](https://img.shields.io/pypi/v/rms-link-checker)](https://pypi.org/project/rms-link-checker)
+[![PyPI - Format](https://img.shields.io/pypi/format/rms-link-checker)](https://pypi.org/project/rms-link-checker)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/rms-link-checker)](https://pypi.org/project/rms-link-checker)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/rms-link-checker)](https://pypi.org/project/rms-link-checker)
 <br />
-[![GitHub commits since latest release](https://img.shields.io/github/commits-since/SETI/REPONAME/latest)](https://github.com/SETI/REPONAME/commits/main/)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/SETI/REPONAME)](https://github.com/SETI/REPONAME/commits/main/)
-[![GitHub last commit](https://img.shields.io/github/last-commit/SETI/REPONAME)](https://github.com/SETI/REPONAME/commits/main/)
+[![GitHub commits since latest release](https://img.shields.io/github/commits-since/SETI/rms-link-checker/latest)](https://github.com/SETI/rms-link-checker/commits/main/)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/commits/main/)
+[![GitHub last commit](https://img.shields.io/github/last-commit/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/commits/main/)
 <br />
-[![Number of GitHub open issues](https://img.shields.io/github/issues-raw/SETI/REPONAME)](https://github.com/SETI/REPONAME/issues)
-[![Number of GitHub closed issues](https://img.shields.io/github/issues-closed-raw/SETI/REPONAME)](https://github.com/SETI/REPONAME/issues)
-[![Number of GitHub open pull requests](https://img.shields.io/github/issues-pr-raw/SETI/REPONAME)](https://github.com/SETI/REPONAME/pulls)
-[![Number of GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/SETI/REPONAME)](https://github.com/SETI/REPONAME/pulls)
+[![Number of GitHub open issues](https://img.shields.io/github/issues-raw/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/issues)
+[![Number of GitHub closed issues](https://img.shields.io/github/issues-closed-raw/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/issues)
+[![Number of GitHub open pull requests](https://img.shields.io/github/issues-pr-raw/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/pulls)
+[![Number of GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/pulls)
 <br />
-![GitHub License](https://img.shields.io/github/license/SETI/REPONAME)
-[![Number of GitHub stars](https://img.shields.io/github/stars/SETI/REPONAME)](https://github.com/SETI/REPONAME/stargazers)
-![GitHub forks](https://img.shields.io/github/forks/SETI/REPONAME)
-[![DOI](https://zenodo.org/badge/REPONAME.svg)](https://zenodo.org/badge/latestdoi/{REPONAME})
+![GitHub License](https://img.shields.io/github/license/SETI/rms-link-checker)
+[![Number of GitHub stars](https://img.shields.io/github/stars/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/stargazers)
+![GitHub forks](https://img.shields.io/github/forks/SETI/rms-link-checker)
 <!-- start-after-point -->
+
+**rms-link-checker** is a Python command-line application that crawls a website
+starting from a given root URL, checks all discovered links for validity, detects
+misplaced asset files, and produces a plain-text report summarizing the results.
+
+Full documentation is available at
+[rms-link-checker.readthedocs.io](https://rms-link-checker.readthedocs.io/en/latest/).
 
 # Features
 
-`REPONAME` is TODO
+- Crawls an entire website starting from a single root URL
+- Checks all discovered links (internal and external) for validity
+- Detects broken links (4xx/5xx responses) and broken anchor fragments
+- Follows and reports redirect chains
+- Detects misplaced asset files (images, documents, scripts, etc.)
+- Configurable depth limit, request limit, and thread count
+- YAML configuration file support with CLI override precedence
+- Non-HTTP scheme links (mailto:, tel:, etc.) recorded and reported
+- SSL certificate errors reported per domain
+- Plain-text report with 12 sections
 
 # Installation
 
-## Setup
+## End-user (recommended)
 
-1. Clone the repository:
+```bash
+pipx install rms-link-checker
+```
 
-   ```bash
-   git clone https://github.com/SETI/REPONAME.git
-   cd REPONAME
-   ```
+## Developer
 
-2. Create and activate a virtual environment (recommended):
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install the package (editable with dev tools):
-
-   ```bash
-   pip install -e ".[dev]"
-   ```
-   Or install only runtime dependencies: `pip install -e .`
-
-4. Set up SPICE kernels:
-   - Download the required SPICE kernels for your mission
-   - Set the `SPICE_PATH` environment variable to point to your kernels directory:
-
-     ```bash
-     export SPICE_PATH=/path/to/your/spice/kernels
-     ```
-
-> **Note**: To fix mypy operability with editable pip installs:
-> ```bash
-> export SETUPTOOLS_ENABLE_FEATURES="legacy-editable"
-> ```
+```bash
+git clone https://github.com/SETI/rms-link-checker.git
+cd rms-link-checker
+python3 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
+```
 
 # Quick Start
 
-TODO
-
-# Documentation
-
-Comprehensive documentation is available in the `docs` directory.
-
-To build the documentation:
-
 ```bash
-cd docs
-make html
+link_check https://example.com
 ```
 
-The built documentation will be available in `docs/_build/html`.
+With options:
+
+```bash
+link_check https://example.com --max-depth 3 --max-threads 20 -o report.txt
+```
+
+With a configuration file:
+
+```bash
+link_check --config-file config.yaml
+```
 
 # Contributing
 
 Information on contributing to this package can be found in the
-[Contributing Guide](https://github.com/SETI/REPONAME/blob/main/CONTRIBUTING.md).
+[Contributing Guide](https://github.com/SETI/rms-link-checker/blob/main/CONTRIBUTING.md).
 
 # Licensing
 
-This code is licensed under the [Apache License v2.0](https://github.com/SETI/REPONAME/blob/main/LICENSE).
+This code is licensed under the [Apache License v2.0](https://github.com/SETI/rms-link-checker/blob/main/LICENSE).

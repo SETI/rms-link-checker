@@ -1,11 +1,12 @@
-# Contributing to REPONAME
+# Contributing to rms-link-checker
 
-Thank you for your interest in contributing to REPONAME! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to rms-link-checker! This document provides
+guidelines and instructions for contributing to the project.
 
 ## Code of Conduct
 
-We expect all contributors to follow our Code of Conduct, which ensures a welcoming and inclusive environment for everyone.
-See CODE_OF_CONDUCT.md.
+We expect all contributors to follow our Code of Conduct, which ensures a welcoming and
+inclusive environment for everyone. See CODE_OF_CONDUCT.md.
 
 ## Getting Started
 
@@ -13,8 +14,8 @@ See CODE_OF_CONDUCT.md.
 2. Clone your fork locally:
 
    ```bash
-   git clone https://github.com/your-username/REPONAME.git
-   cd REPONAME
+   git clone https://github.com/your-username/rms-link-checker.git
+   cd rms-link-checker
    ```
 
 3. Create a virtual environment and install the package with dev dependencies:
@@ -23,12 +24,6 @@ See CODE_OF_CONDUCT.md.
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -e ".[dev]"
-   ```
-
-4. Set up pre-commit hooks:
-
-   ```bash
-   pre-commit install
    ```
 
 ## Development Workflow
@@ -42,59 +37,48 @@ See CODE_OF_CONDUCT.md.
    ```
 
 2. Make your changes, following our coding standards
-3. Write or update tests as necessary
+3. Write or update tests as necessary (we follow TDD — tests first!)
 4. Run the tests to ensure they pass:
 
    ```bash
-   pytest
+   pytest -n auto --cov
    ```
 
-5. Commit your changes with a descriptive message:
+5. Run all checks with the provided script:
 
    ```bash
-   git commit -m "Add feature: description of your changes"
+   ./scripts/run-all-checks.sh
    ```
 
-6. Push your branch to your fork:
+6. Commit your changes with a descriptive message:
+
+   ```bash
+   git commit -m "feat: add feature description"
+   ```
+
+7. Push your branch to your fork:
 
    ```bash
    git push origin feature/your-feature-name
    ```
 
-7. Open a Pull Request on GitHub
+8. Open a Pull Request on GitHub
 
 ## Coding Standards
 
 We follow these standards for all code contributions:
 
-* **Python Style**: Follow PEP 8
-* **Type Hints**: Use type hints for all function parameters and return values
-* **Docstrings**: Document all classes and methods with docstrings following the Google style
-* **Testing**: Include unit tests for new functionality
-* **Compatibility**: Ensure compatibility with Python 3.10+
-
-Example of a well-formatted function:
-
-```python
-def calculate_offset(image: NDArrayFloatType, model: NDArrayFloatType) -> tuple[float, float]:
-    """Calculate the offset between an image and a model.
-
-    Parameters:
-        image: The observed image as a NumPy array
-        model: The theoretical model as a NumPy array
-
-    Returns:
-        A tuple containing the (u, v) offset in pixels
-    """
-    # Implementation here
-    return u_offset, v_offset
-```
+- **Python Style**: Follow PEP 8 (enforced via `ruff`)
+- **Type Hints**: Use type hints for all function parameters and return values
+- **Docstrings**: Document all classes and methods with Google-style docstrings
+- **Testing**: Include unit tests for new functionality (TDD approach)
+- **Compatibility**: Ensure compatibility with Python 3.10+
 
 ## Pull Request Process
 
 1. Ensure all tests pass
 2. Update documentation if necessary
-3. Make sure your code is properly formatted and passes both ruff and mypy
+3. Make sure your code is properly formatted and passes both `ruff` and `mypy`
 4. Request a review from a maintainer
 5. Address any feedback from reviewers
 
@@ -102,10 +86,10 @@ The maintainers will merge your PR once it meets all requirements.
 
 ## Testing
 
-We use pytest for testing. To run the tests:
+We use pytest for testing. To run the tests with coverage:
 
 ```bash
-pytest
+pytest -n auto --cov
 ```
 
 For more verbose output:
@@ -117,7 +101,7 @@ pytest -v
 To run a specific test file:
 
 ```bash
-pytest tests/test_specific_file.py
+pytest tests/test_url_utils.py
 ```
 
 ## Documentation
@@ -131,22 +115,16 @@ make html
 
 The generated documentation will be in `docs/_build/html`.
 
-When adding new features, please update the relevant documentation:
-
-* Update docstrings for new functions and classes
-* Add examples if appropriate
-* Update the user guide or developer guide if necessary
-
 ## Reporting Issues
 
 If you find a bug or have a suggestion for improvement:
 
 1. Check if the issue already exists in the GitHub issue tracker
 2. If not, create a new issue with:
-   * A clear, descriptive title
-   * A detailed description of the issue
-   * Steps to reproduce (for bugs)
-   * Your environment information (Python version, OS, etc.)
-   * Any relevant logs or screenshots
+   - A clear, descriptive title
+   - A detailed description of the issue
+   - Steps to reproduce (for bugs)
+   - Your environment information (Python version, OS, etc.)
+   - Any relevant logs or screenshots
 
-Thank you for contributing to REPONAME!
+Thank you for contributing to rms-link-checker!

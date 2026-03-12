@@ -17,7 +17,7 @@ labels: bug
 ## Steps to Reproduce
 
 ```python
-import REPONAME
+import rms-link-checker
 # minimal reproduction here
 ```
 

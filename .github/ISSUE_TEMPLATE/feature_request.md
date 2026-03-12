@@ -14,7 +14,7 @@ labels: enhancement
 
 ```python
 # Example usage
-result = REPONAME.new_function(arg)
+result = rms-link-checker.new_function(arg)
 ```
 
 ## Alternatives Considered

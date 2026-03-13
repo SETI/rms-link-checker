@@ -299,7 +299,27 @@ def test_visit_once_different_schemes() -> None:
 
 
 @resp_lib.activate
-def test_visit_once_query_params_stripped() -> None:
+def test_visit_once_same_url_visited_only_once() -> None:
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body=(
+            '<html><body>'
+            '<a href="/docs/page.html">link1</a>'
+            '<a href="/docs/page.html">link2</a>'
+            '</body></html>'
+        ),
+        status=200,
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
+    cfg = _cfg()
+    results = Crawler(cfg).crawl()
+    assert results.statistics.total_requests == 2
+
+
+@resp_lib.activate
+def test_visit_once_query_params_distinct() -> None:
+    """URLs with different query strings are treated as distinct resources."""
     resp_lib.add(
         resp_lib.GET,
         'https://example.com/docs',
@@ -311,10 +331,11 @@ def test_visit_once_query_params_stripped() -> None:
         ),
         status=200,
     )
-    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html?a=1', body='<html/>', status=200)
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html?b=2', body='<html/>', status=200)
     cfg = _cfg()
     results = Crawler(cfg).crawl()
-    assert results.statistics.total_requests == 2
+    assert results.statistics.total_requests == 3
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +404,8 @@ def test_no_crawl_prefix_checked_not_crawled() -> None:
     results = Crawler(cfg).crawl()
     nc_urls = [m.url for m in results.no_crawl_matches]
     assert 'https://example.com/docs/archive/page.html' in nc_urls
+    # The HEAD request for the no-crawl URL must be counted in statistics.
+    assert results.statistics.total_requests == 2  # GET root + HEAD archive page
 
 
 # ---------------------------------------------------------------------------
@@ -668,3 +691,228 @@ def test_exit_code_1_broken() -> None:
     cfg = _cfg()
     results = Crawler(cfg).crawl()
     assert results.has_problems() is True
+
+
+# ---------------------------------------------------------------------------
+# Referrer accumulation for already-visited URLs
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_already_visited_broken_link_accumulates_referrers() -> None:
+    """A broken URL linked from two different pages should list both referrers."""
+    # Root page links to both page1 and page2, which in turn each link to broken.html.
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body=(
+            '<html><body>'
+            '<a href="/docs/page1.html">p1</a>'
+            '<a href="/docs/page2.html">p2</a>'
+            '</body></html>'
+        ),
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page1.html',
+        body='<html><body><a href="/docs/broken.html">x</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page2.html',
+        body='<html><body><a href="/docs/broken.html">x</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/broken.html', status=404)
+    cfg = _cfg()
+    results = Crawler(cfg).crawl()
+
+    broken = results.broken_links
+    assert len(broken) == 1
+    entry = broken[0]
+    assert entry.url == 'https://example.com/docs/broken.html'
+    assert sorted(entry.referencing_pages) == [
+        'https://example.com/docs/page1.html',
+        'https://example.com/docs/page2.html',
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Network error (non-SSL) on internal page
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_network_error_on_internal_page_recorded_as_broken_link() -> None:
+    """A connection error on an internal GET must record a broken link."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body='<html><body><a href="/docs/page.html">p</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page.html',
+        body=requests.exceptions.ConnectionError('connection refused'),
+    )
+    cfg = _cfg(root_url='https://example.com/docs')
+    results = Crawler(cfg).crawl()
+    broken_urls = [bl.url for bl in results.broken_links]
+    assert 'https://example.com/docs/page.html' in broken_urls
+
+
+# ---------------------------------------------------------------------------
+# Fragment on internal page that returns an error
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_fragment_on_internal_error_page_recorded_as_unvalidated() -> None:
+    """When an internal page GET fails, a fragment on that URL must be
+    recorded as unvalidated (not crash)."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body='<html><body><a href="/docs/bad.html#sec1">link</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/bad.html', status=500)
+    cfg = _cfg()
+    results = Crawler(cfg).crawl()
+    unvalidated = [a.target_url for a in results.unvalidated_anchors]
+    assert 'https://example.com/docs/bad.html#sec1' in unvalidated
+
+
+# ---------------------------------------------------------------------------
+# abort() and results property
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_abort_stops_crawl_and_results_accessible() -> None:
+    """abort() must set the abort event; results property returns the same
+    object as crawl() returns."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body='<html><body></body></html>',
+        status=200,
+    )
+    cfg = _cfg()
+    crawler = Crawler(cfg)
+    # results property is accessible before crawl.
+    assert crawler.results is not None
+    results = crawler.crawl()
+    # results property must return the same object as crawl().
+    assert crawler.results is results
+    # abort() is callable after crawl finishes without error.
+    crawler.abort()
+
+
+# ---------------------------------------------------------------------------
+# Misplaced asset with no file extension (no asset type → not recorded)
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_misplaced_asset_no_extension_not_recorded() -> None:
+    """An asset URL with no file extension must not be added to misplaced_assets."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body='<html><head><link rel="stylesheet" href="https://cdn.example.net/style"></head></html>',
+        status=200,
+    )
+    resp_lib.add(resp_lib.HEAD, 'https://cdn.example.net/style', status=200)
+    cfg = _cfg_with(asset_urls=('https://example.com/docs/assets',))
+    results = Crawler(cfg).crawl()
+    assert results.misplaced_assets == []
+
+
+# ---------------------------------------------------------------------------
+# Already-visited URL: IGNORED disposition re-records referrer
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_already_visited_ignored_url_accumulates_referrers() -> None:
+    """An ignored URL seen from two pages must list both referrers."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body=(
+            '<html><body>'
+            '<a href="/docs/page1.html">p1</a>'
+            '<a href="/docs/page2.html">p2</a>'
+            '</body></html>'
+        ),
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page1.html',
+        body='<html><body><a href="https://example.com/docs/skip/x.html">x</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page2.html',
+        body='<html><body><a href="https://example.com/docs/skip/x.html">x</a></body></html>',
+        status=200,
+    )
+    cfg = _cfg_with(ignore_urls=('https://example.com/docs/skip',))
+    results = Crawler(cfg).crawl()
+    matches = [m for m in results.ignore_matches if m.url == 'https://example.com/docs/skip/x.html']
+    assert matches
+    assert len(matches[0].referencing_pages) == 2
+    """A redirecting URL linked from two pages should list both referrers."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body=(
+            '<html><body>'
+            '<a href="/docs/page1.html">p1</a>'
+            '<a href="/docs/page2.html">p2</a>'
+            '</body></html>'
+        ),
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page1.html',
+        body='<html><body><a href="/docs/old.html">x</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page2.html',
+        body='<html><body><a href="/docs/old.html">x</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/old.html',
+        headers={'Location': 'https://example.com/docs/new.html'},
+        status=301,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/new.html',
+        body='<html><body></body></html>',
+        status=200,
+    )
+    cfg = _cfg()
+    results = Crawler(cfg).crawl()
+
+    redirects = results.redirects
+    assert len(redirects) == 1
+    entry = redirects[0]
+    assert entry.original_url == 'https://example.com/docs/old.html'
+    assert sorted(entry.referencing_pages) == [
+        'https://example.com/docs/page1.html',
+        'https://example.com/docs/page2.html',
+    ]
+

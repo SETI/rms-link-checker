@@ -263,6 +263,50 @@ def test_no_cookies_sent() -> None:
 
 
 # ---------------------------------------------------------------------------
+# TLS verification option
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_verify_false_passed_to_request() -> None:
+    def callback(request: object) -> tuple[int, dict[str, str], str]:
+        return (200, {}, '')
+
+    resp_lib.add_callback(resp_lib.GET, 'https://example.com/page', callback)
+    client = HttpClient(
+        timeout=10, retries=0, user_agent='test', verify=False
+    )
+    with patch.object(
+        client._session,
+        'request',
+        wraps=client._session.request,
+    ) as mock_req:
+        client.request('https://example.com/page', method='GET')
+    _args, kwargs = mock_req.call_args
+    assert kwargs.get('verify') is False
+
+
+# ---------------------------------------------------------------------------
+# Broad RequestException handling
+# ---------------------------------------------------------------------------
+
+
+@resp_lib.activate
+def test_chunked_encoding_error_returns_error_result() -> None:
+    """A RequestException subclass other than SSLError/ConnectionError/Timeout
+    must be caught and returned as an error result (not propagated)."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/page',
+        body=requests.exceptions.ChunkedEncodingError('broken chunk'),
+    )
+    client = _make_client(timeout=1, retries=0)
+    result = client.request('https://example.com/page', method='GET')
+    assert result.error is not None
+    assert result.status_code == 0
+
+
+# ---------------------------------------------------------------------------
 # RequestResult structure
 # ---------------------------------------------------------------------------
 

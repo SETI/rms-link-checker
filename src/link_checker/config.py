@@ -121,11 +121,19 @@ def load_config(
     output = _resolve('output')
     log_file = _resolve('log_file')
 
-    asset_urls = tuple(yaml_data.get('asset_urls', []))
-    no_crawl_urls = tuple(yaml_data.get('no_crawl_urls', []))
-    ignore_urls = tuple(yaml_data.get('ignore_urls', []))
+    asset_urls = _coerce_url_list(yaml_data.get('asset_urls'), 'asset_urls')
+    no_crawl_urls = _coerce_url_list(yaml_data.get('no_crawl_urls'), 'no_crawl_urls')
+    ignore_urls = _coerce_url_list(yaml_data.get('ignore_urls'), 'ignore_urls')
 
-    _validate(timeout=timeout, retries=retries, log_level=log_level)
+    _validate(
+        timeout=timeout,
+        retries=retries,
+        max_requests=max_requests,
+        max_depth=max_depth,
+        max_threads=max_threads,
+        max_referencing_pages=max_referencing_pages,
+        log_level=log_level,
+    )
 
     return CrawlConfig(
         root_url=root_url,
@@ -181,6 +189,26 @@ def _load_yaml_file(path: str) -> dict[str, Any]:
     return data
 
 
+def _coerce_url_list(value: Any, field: str) -> tuple[str, ...]:
+    """Coerce a YAML value to a tuple of strings, or raise on bad input.
+
+    Args:
+        value: Raw value from YAML (expected to be a list or absent/None).
+        field: Field name used in the error message.
+
+    Returns:
+        Tuple of strings (empty if *value* is None).
+
+    Raises:
+        ValueError: If *value* is present but not a list.
+    """
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError(f'{field} must be a list in the config file, got {type(value).__name__!r}')
+    return tuple(str(item) for item in value)
+
+
 def _coerce_int(value: Any, field: str) -> int:
     """Coerce *value* to int, raising :exc:`ValueError` with a clear message on failure.
 
@@ -200,12 +228,25 @@ def _coerce_int(value: Any, field: str) -> int:
         raise ValueError(f'{field} must be an integer, got {value!r}') from None
 
 
-def _validate(*, timeout: int, retries: int, log_level: str) -> None:
+def _validate(
+    *,
+    timeout: int,
+    retries: int,
+    max_requests: int | None,
+    max_depth: int | None,
+    max_threads: int,
+    max_referencing_pages: int,
+    log_level: str,
+) -> None:
     """Validate config values, raising ValueError on failure.
 
     Args:
         timeout: Request timeout in seconds (must be > 0).
         retries: Retry count (must be >= 0).
+        max_requests: Maximum HTTP requests (must be > 0 if set).
+        max_depth: Maximum crawl depth (must be >= 0 if set).
+        max_threads: Thread pool size (must be >= 1).
+        max_referencing_pages: Max referencing pages in report (must be >= 1).
         log_level: Log level string (must be one of the standard levels).
 
     Raises:
@@ -215,5 +256,13 @@ def _validate(*, timeout: int, retries: int, log_level: str) -> None:
         raise ValueError(f'timeout must be > 0, got {timeout}')
     if retries < 0:
         raise ValueError(f'retries must be >= 0, got {retries}')
+    if max_requests is not None and max_requests <= 0:
+        raise ValueError(f'max_requests must be > 0, got {max_requests}')
+    if max_depth is not None and max_depth < 0:
+        raise ValueError(f'max_depth must be >= 0, got {max_depth}')
+    if max_threads < 1:
+        raise ValueError(f'max_threads must be >= 1, got {max_threads}')
+    if max_referencing_pages < 1:
+        raise ValueError(f'max_referencing_pages must be >= 1, got {max_referencing_pages}')
     if log_level not in _VALID_LOG_LEVELS:
         raise ValueError(f'log_level must be one of {sorted(_VALID_LOG_LEVELS)}, got {log_level!r}')

@@ -356,3 +356,94 @@ def test_report_sections_separated_by_two_blank_lines() -> None:
         assert report[match.start() - 2 : match.start()] == '\n\n', (
             f'Expected two blank lines before section at position {match.start()}'
         )
+
+
+# ---------------------------------------------------------------------------
+# Config summary: no_crawl_urls and ignore_urls
+# ---------------------------------------------------------------------------
+
+
+def test_report_config_summary_no_crawl_urls() -> None:
+    cfg = replace(_cfg(), no_crawl_urls=('https://example.com/archive',))
+    r = CrawlResults()
+    report = generate_report(r, cfg)
+    assert 'No-crawl URL prefixes:' in report
+    assert '  - https://example.com/archive' in report
+
+
+def test_report_config_summary_ignore_urls() -> None:
+    cfg = replace(_cfg(), ignore_urls=('https://example.com/skip',))
+    r = CrawlResults()
+    report = generate_report(r, cfg)
+    assert 'Ignore URL prefixes:' in report
+    assert '  - https://example.com/skip' in report
+
+
+# ---------------------------------------------------------------------------
+# Truncation "+N more" lines in each section
+# ---------------------------------------------------------------------------
+
+
+def test_broken_links_truncation_more_line() -> None:
+    r = CrawlResults()
+    cfg = replace(_cfg(), max_referencing_pages=1)
+    r.add_broken_anchor('https://example.com/page#missing', 'ref1')
+    r.add_broken_anchor('https://example.com/page#missing', 'ref2')
+    report = generate_report(r, cfg)
+    assert '... and 1 more referencing pages' in report
+
+
+def test_non200_truncation_more_line() -> None:
+    r = CrawlResults()
+    cfg = replace(_cfg(), max_referencing_pages=1)
+    r.add_non200('https://example.com/gone', 404, 'ref1')
+    r.add_non200('https://example.com/gone', 404, 'ref2')
+    report = generate_report(r, cfg)
+    assert '... and 1 more referencing pages' in report
+
+
+def test_redirects_truncation_more_line() -> None:
+    r = CrawlResults()
+    cfg = replace(_cfg(), max_referencing_pages=1)
+    r.add_redirect('https://example.com/old', 'https://example.com/new', 301, 'ref1')
+    r.add_redirect('https://example.com/old', 'https://example.com/new', 301, 'ref2')
+    report = generate_report(r, cfg)
+    assert '... and 1 more referencing pages' in report
+
+
+def test_ignore_matches_truncation_more_line() -> None:
+    r = CrawlResults()
+    cfg = replace(_cfg(), max_referencing_pages=1)
+    r.add_ignore_match('https://example.com/skip', 'ref1')
+    r.add_ignore_match('https://example.com/skip', 'ref2')
+    report = generate_report(r, cfg)
+    assert '... and 1 more referencing pages' in report
+
+
+def test_non_http_links_truncation_more_line() -> None:
+    r = CrawlResults()
+    cfg = replace(_cfg(), max_referencing_pages=1)
+    r.add_non_http_link('mailto:a@example.com', 'mailto', 'ref1')
+    r.add_non_http_link('mailto:a@example.com', 'mailto', 'ref2')
+    report = generate_report(r, cfg)
+    assert '... and 1 more referencing pages' in report
+
+
+def test_ssl_warnings_truncation_more_line() -> None:
+    r = CrawlResults()
+    cfg = replace(_cfg(), max_referencing_pages=1)
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'err', 'ref1')
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'err', 'ref2')
+    report = generate_report(r, cfg)
+    assert '... and 1 more referencing pages' in report
+
+
+# ---------------------------------------------------------------------------
+# _http_reason: unknown status code → empty string
+# ---------------------------------------------------------------------------
+
+
+def test_http_reason_unknown_status_returns_empty() -> None:
+    from link_checker.report import _http_reason
+    assert _http_reason(999) == ''
+

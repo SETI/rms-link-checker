@@ -1,4 +1,4 @@
-"""Plain-text report generator for all 12 report sections."""
+"""Plain-text report generator for the 11 report sections."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ from link_checker.results import CrawlResults
 def generate_report(results: CrawlResults, config: CrawlConfig) -> str:
     """Generate the full plain-text report for a completed crawl.
 
-    Produces all 12 sections as defined in spec §10.
+    Produces 11 sections covering configuration, statistics, broken links,
+    broken anchors, non-200 responses, redirects, misplaced assets, ignored
+    URLs, non-HTTP links, SSL warnings, and unvalidated anchors.
 
     Args:
         results: Completed crawl results.

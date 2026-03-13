@@ -26,7 +26,7 @@ Run with coverage report:
 Coverage Target
 ---------------
 
-We target **80% line coverage** across the entire codebase.
+We target **90% line coverage** across the entire codebase.
 
 Writing Tests
 -------------

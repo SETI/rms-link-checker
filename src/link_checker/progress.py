@@ -59,7 +59,12 @@ class ProgressReporter:
             queued = self._queued
             threads = self._active_threads
             elapsed = self._elapsed
+        self._emit_unlocked(checked, queued, threads, elapsed)
 
+    def _emit_unlocked(
+        self, checked: int, queued: int, threads: int, elapsed: float
+    ) -> None:
+        """Write a progress line using already-captured values (no locking)."""
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
         estimate = checked + queued
@@ -74,13 +79,17 @@ class ProgressReporter:
         print(line, file=sys.stderr, flush=True)
 
     def _schedule(self) -> None:
-        self._emit()
         with self._lock:
             if self._stopped:
                 return
+            checked = self._checked
+            queued = self._queued
+            threads = self._active_threads
+            elapsed = self._elapsed
             self._timer = threading.Timer(self._interval, self._schedule)
             self._timer.daemon = True
             self._timer.start()
+        self._emit_unlocked(checked, queued, threads, elapsed)
 
     def start(self) -> None:
         """Start emitting periodic progress updates."""

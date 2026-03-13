@@ -103,6 +103,15 @@ class Crawler:
         """
         self._abort_event.set()
 
+    @property
+    def results(self) -> CrawlResults:
+        """Return the accumulated crawl results.
+
+        May be partial if called after :meth:`abort` before :meth:`crawl`
+        has returned.
+        """
+        return self._results
+
     def crawl(self) -> CrawlResults:
         """Run the full crawl starting from ``config.root_url``.
 
@@ -117,7 +126,6 @@ class Crawler:
 
         with ThreadPoolExecutor(max_workers=self._config.max_threads) as executor:
             futures_map = {}
-            submitted: set[str] = set()
 
             while True:
                 while not work_queue.empty() and not self._abort_event.is_set():
@@ -125,31 +133,36 @@ class Crawler:
                         item = work_queue.get_nowait()
                     except queue.Empty:
                         break
-                    canonical, _ = normalize_url(item.url)
-                    if canonical in submitted:
-                        continue
-                    submitted.add(canonical)
                     fut = executor.submit(self._process_url, item, work_queue)
                     futures_map[fut] = item
 
-                if not futures_map:
-                    break
+                if not futures_map and work_queue.empty():
+                    with self._active_threads_lock:
+                        active = self._active_threads
+                    if active == 0:
+                        break
 
-                done_set, _ = wait(futures_map.keys(), timeout=5.0, return_when=FIRST_COMPLETED)
+                if not futures_map:
+                    # In-flight workers may still enqueue new items; wait briefly.
+                    time.sleep(0.01)
+                    continue
+                done_set, _ = wait(
+                    list(futures_map), timeout=5.0, return_when=FIRST_COMPLETED
+                )
+
+                if self._progress is not None:
+                    with self._request_count_lock:
+                        checked = self._request_count
+                    with self._active_threads_lock:
+                        active = self._active_threads
+                    self._progress.update(
+                        checked=checked,
+                        queued=work_queue.qsize(),
+                        active_threads=active,
+                        elapsed=time.time() - self._start_time,
+                    )
 
                 if not done_set:
-                    # Timeout elapsed with no completions — emit a progress update.
-                    if self._progress is not None:
-                        with self._request_count_lock:
-                            checked = self._request_count
-                        with self._active_threads_lock:
-                            active = self._active_threads
-                        self._progress.update(
-                            checked=checked,
-                            queued=work_queue.qsize(),
-                            active_threads=active,
-                            elapsed=time.time() - self._start_time,
-                        )
                     continue
 
                 for fut in done_set:
@@ -187,6 +200,22 @@ class Crawler:
                 return False
             self._visited.add(canonical)
             return True
+
+    def _merge_referrer(self, canonical: str, referrer: str) -> None:
+        """Associate *referrer* with any existing result entry for *canonical*.
+
+        Called when a URL is encountered again after its first fetch has
+        already completed (or is in-flight).  All result buckets that
+        track *canonical* receive the new referrer so reports show every
+        page that links to a broken/redirecting/etc. URL.
+
+        Args:
+            canonical: Normalised URL whose existing result to update.
+            referrer: Page that contained the link to *canonical*.
+        """
+        if not referrer:
+            return
+        self._results.merge_referrer(canonical, referrer)
 
     def _process_url(
         self,
@@ -230,6 +259,7 @@ class Crawler:
             already = canonical in self._visited
 
         if already:
+            self._merge_referrer(canonical, referrer)
             if fragment:
                 logger.debug('Already visited %s; validating anchor #%s', canonical, fragment)
                 self._validate_anchor(canonical, fragment, url_no_frag + '#' + fragment, referrer)
@@ -265,6 +295,7 @@ class Crawler:
             return
 
         if not self._mark_visited(canonical):
+            self._merge_referrer(canonical, referrer)
             if fragment:
                 self._validate_anchor(canonical, fragment, url_no_frag + '#' + fragment, referrer)
             return
@@ -281,6 +312,7 @@ class Crawler:
             logger.debug('No-crawl HEAD %s', canonical)
             result = self._http.request(canonical, method='HEAD')
             self._record_result(result, canonical, referrer, is_external=False)
+            self._results.record_request(canonical)
             self._results.add_no_crawl_match(canonical, referrer)
             if fragment:
                 self._results.add_unvalidated_anchor(

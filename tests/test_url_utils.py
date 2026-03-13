@@ -32,15 +32,15 @@ def test_normalize_url_no_fragment() -> None:
     assert frag is None
 
 
-def test_normalize_url_strips_query_params() -> None:
+def test_normalize_url_preserves_query_params() -> None:
     url, frag = normalize_url('https://x.com/a?b=c&d=e')
-    assert url == 'https://x.com/a'
+    assert url == 'https://x.com/a?b=c&d=e'
     assert frag is None
 
 
-def test_normalize_url_strips_query_and_fragment() -> None:
+def test_normalize_url_preserves_query_strips_fragment() -> None:
     url, frag = normalize_url('https://x.com/a?b=c#section')
-    assert url == 'https://x.com/a'
+    assert url == 'https://x.com/a?b=c'
     assert frag == 'section'
 
 

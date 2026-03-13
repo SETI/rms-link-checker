@@ -191,3 +191,180 @@ def test_non200_records() -> None:
     r.add_non200('https://example.com/forbidden', 403, 'https://example.com/')
     assert len(r.non200_responses) == 1
     assert r.non200_responses[0].status_code == 403
+
+
+def test_merge_referrer_broken_link() -> None:
+    r = CrawlResults()
+    r.add_broken_link('https://example.com/gone', 404, '404', 'https://example.com/page1')
+    r.merge_referrer('https://example.com/gone', 'https://example.com/page2')
+    entry = r.broken_links[0]
+    assert sorted(entry.referencing_pages) == [
+        'https://example.com/page1',
+        'https://example.com/page2',
+    ]
+
+
+def test_merge_referrer_redirect() -> None:
+    r = CrawlResults()
+    r.add_redirect(
+        'https://example.com/old',
+        'https://example.com/new',
+        301,
+        'https://example.com/page1',
+    )
+    r.merge_referrer('https://example.com/old', 'https://example.com/page2')
+    entry = r.redirects[0]
+    assert sorted(entry.referencing_pages) == [
+        'https://example.com/page1',
+        'https://example.com/page2',
+    ]
+
+
+def test_merge_referrer_no_op_for_unknown_url() -> None:
+    """merge_referrer must not create new entries for unknown URLs."""
+    r = CrawlResults()
+    r.merge_referrer('https://example.com/unknown', 'https://example.com/page1')
+    assert r.broken_links == []
+    assert r.redirects == []
+
+
+def test_merge_referrer_deduplicates_referrer() -> None:
+    """Calling merge_referrer twice with the same referrer must not duplicate it."""
+    r = CrawlResults()
+    r.add_broken_link('https://example.com/gone', 404, '404', 'https://example.com/page1')
+    r.merge_referrer('https://example.com/gone', 'https://example.com/page1')
+    assert r.broken_links[0].referencing_pages == ['https://example.com/page1']
+
+
+def test_accessors_return_snapshots_not_live_objects() -> None:
+    """Mutating objects returned by accessors must not affect internal state."""
+    r = CrawlResults()
+    r.add_broken_link('https://example.com/gone', 404, '404', 'https://example.com/ref1')
+    r.add_redirect('https://example.com/old', 'https://example.com/new', 301, 'https://example.com/ref1')
+    r.add_broken_anchor('https://example.com/page#missing', 'https://example.com/ref1')
+    r.add_non200('https://example.com/gone', 404, 'https://example.com/ref1')
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'SSL fail', 'https://example.com/ref1')
+
+    # Mutate every returned snapshot.
+    r.broken_links[0].referencing_pages.append('INJECTED')
+    r.redirects[0].referencing_pages.append('INJECTED')
+    r.broken_anchors[0].referencing_pages.append('INJECTED')
+    r.non200_responses[0].referencing_pages.append('INJECTED')
+    r.ssl_warnings[0].affected_urls[0][1].append('INJECTED')
+
+    # Internal state must be unchanged.
+    assert r.broken_links[0].referencing_pages == ['https://example.com/ref1']
+    assert r.redirects[0].referencing_pages == ['https://example.com/ref1']
+    assert r.broken_anchors[0].referencing_pages == ['https://example.com/ref1']
+    assert r.non200_responses[0].referencing_pages == ['https://example.com/ref1']
+    assert r.ssl_warnings[0].affected_urls[0][1] == ['https://example.com/ref1']
+
+
+# ---------------------------------------------------------------------------
+# merge_referrer: SSL warning path & empty-referrer guard
+# ---------------------------------------------------------------------------
+
+
+def test_merge_referrer_empty_referrer_is_no_op() -> None:
+    r = CrawlResults()
+    r.add_broken_link('https://example.com/gone', 404, '404', 'https://example.com/ref1')
+    r.merge_referrer('https://example.com/gone', '')
+    assert r.broken_links[0].referencing_pages == ['https://example.com/ref1']
+
+
+def test_merge_referrer_ssl_warning_path() -> None:
+    r = CrawlResults()
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'SSL fail', 'ref1')
+    r.merge_referrer('https://bad.example.com/x', 'ref2')
+    assert sorted(r.ssl_warnings[0].affected_urls[0][1]) == ['ref1', 'ref2']
+
+
+def test_merge_referrer_ssl_warning_deduplicates() -> None:
+    r = CrawlResults()
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'SSL fail', 'ref1')
+    r.merge_referrer('https://bad.example.com/x', 'ref1')
+    assert r.ssl_warnings[0].affected_urls[0][1] == ['ref1']
+
+
+def test_merge_referrer_pending_then_ssl_warning_drains() -> None:
+    """Pending referrer queued before ssl_warning entry must be drained into it."""
+    r = CrawlResults()
+    r.merge_referrer('https://bad.example.com/x', 'pending-ref')
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'SSL fail', 'direct-ref')
+    refs = r.ssl_warnings[0].affected_urls[0][1]
+    assert 'pending-ref' in refs
+    assert 'direct-ref' in refs
+
+
+# ---------------------------------------------------------------------------
+# Pending-referrer drain paths for add_* methods
+# ---------------------------------------------------------------------------
+
+
+def test_pending_referrer_drained_into_redirect() -> None:
+    r = CrawlResults()
+    r.merge_referrer('https://example.com/old', 'pending-ref')
+    r.add_redirect('https://example.com/old', 'https://example.com/new', 301, 'direct-ref')
+    entry = r.redirects[0]
+    assert 'pending-ref' in entry.referencing_pages
+    assert 'direct-ref' in entry.referencing_pages
+
+
+def test_pending_referrer_drained_into_non200() -> None:
+    r = CrawlResults()
+    r.merge_referrer('https://example.com/gone', 'pending-ref')
+    r.add_non200('https://example.com/gone', 404, 'direct-ref')
+    entry = r.non200_responses[0]
+    assert 'pending-ref' in entry.referencing_pages
+
+
+def test_pending_referrer_drained_into_misplaced_asset() -> None:
+    r = CrawlResults()
+    r.merge_referrer('https://example.com/img.png', 'pending-ref')
+    r.add_misplaced_asset('https://example.com/img.png', 'Image', 'direct-ref')
+    entry = r.misplaced_assets[0]
+    assert 'pending-ref' in entry.referencing_pages
+
+
+def test_pending_referrer_drained_into_non_http_link() -> None:
+    r = CrawlResults()
+    r.merge_referrer('mailto:info@example.com', 'pending-ref')
+    r.add_non_http_link('mailto:info@example.com', 'mailto', 'direct-ref')
+    entry = r.non_http_links[0]
+    assert 'pending-ref' in entry.referencing_pages
+
+
+def test_pending_referrer_drained_into_ignore_match() -> None:
+    r = CrawlResults()
+    r.merge_referrer('https://example.com/ignored', 'pending-ref')
+    r.add_ignore_match('https://example.com/ignored', 'direct-ref')
+    entry = r.ignore_matches[0]
+    assert 'pending-ref' in entry.referencing_pages
+
+
+def test_pending_referrer_drained_into_no_crawl_match() -> None:
+    r = CrawlResults()
+    r.merge_referrer('https://example.com/archive', 'pending-ref')
+    r.add_no_crawl_match('https://example.com/archive', 'direct-ref')
+    entry = r.no_crawl_matches[0]
+    assert 'pending-ref' in entry.referencing_pages
+
+
+def test_record_request_no_domain_does_not_crash() -> None:
+    """record_request with a URL that has no domain must not raise."""
+    r = CrawlResults()
+    r.record_request('', bytes_downloaded=0)
+    assert r.statistics.total_requests == 1
+
+
+# ---------------------------------------------------------------------------
+# add_ssl_warning: second referrer to same URL (existing entry branch)
+# ---------------------------------------------------------------------------
+
+
+def test_add_ssl_warning_second_referrer_to_existing_url() -> None:
+    r = CrawlResults()
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'err', 'ref1')
+    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'err', 'ref2')
+    refs = r.ssl_warnings[0].affected_urls[0][1]
+    assert sorted(refs) == ['ref1', 'ref2']

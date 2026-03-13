@@ -154,7 +154,7 @@ def main() -> None:
         interrupted = True
         print('\nInterrupted — waiting for in-flight requests to finish...', file=sys.stderr)
         crawler.abort()
-        results = crawler._results
+        results = crawler.results
     finally:
         progress.stop()
 

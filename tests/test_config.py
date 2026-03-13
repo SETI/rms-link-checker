@@ -307,11 +307,57 @@ def test_multiple_unknown_yaml_keys_raises(tmp_path: Path) -> None:
         load_config(ns, config_path=str(yaml_file))
 
 
+@pytest.mark.parametrize('field', ['asset_urls', 'no_crawl_urls', 'ignore_urls'])
+def test_url_list_scalar_raises(tmp_path: Path, field: str) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text(f'root_url: "https://example.com"\n{field}: "not-a-list"\n')
+    ns = _minimal_namespace()
+    with pytest.raises(ValueError, match=rf'{field} must be a list'):
+        load_config(ns, config_path=str(yaml_file))
+
+
+@pytest.mark.parametrize('field', ['asset_urls', 'no_crawl_urls', 'ignore_urls'])
+def test_url_list_null_treated_as_empty(tmp_path: Path, field: str) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text(f'root_url: "https://example.com"\n{field}: ~\n')
+    ns = _minimal_namespace()
+    cfg = load_config(ns, config_path=str(yaml_file))
+    assert getattr(cfg, field) == ()
+
+
 def test_log_level_case_insensitive() -> None:
     for value in ('debug', 'Debug', 'WARNING', 'warning', 'Error', 'critical', 'INFO'):
         ns = _minimal_namespace(root_url='https://example.com', log_level=value)
         cfg = load_config(ns)
         assert cfg.log_level == value.upper()
+
+
+# ---------------------------------------------------------------------------
+# Range validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ('field', 'value', 'match'),
+    [
+        ('max_requests', 0, r'max_requests must be > 0'),
+        ('max_requests', -1, r'max_requests must be > 0'),
+        ('max_depth', -1, r'max_depth must be >= 0'),
+        ('max_threads', 0, r'max_threads must be >= 1'),
+        ('max_threads', -5, r'max_threads must be >= 1'),
+        ('max_referencing_pages', 0, r'max_referencing_pages must be >= 1'),
+    ],
+)
+def test_invalid_range_raises(field: str, value: int, match: str) -> None:
+    ns = _minimal_namespace(root_url='https://example.com', **{field: value})
+    with pytest.raises(ValueError, match=match):
+        load_config(ns)
+
+
+def test_max_depth_zero_is_valid() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', max_depth=0)
+    cfg = load_config(ns)
+    assert cfg.max_depth == 0
 
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from urllib.parse import urlparse
 
 
@@ -201,6 +201,69 @@ class CrawlResults:
         self._ignore_matches: dict[str, IgnoreMatch] = {}
         self._no_crawl_matches: dict[str, NoCrawlMatch] = {}
         self._statistics = CrawlStatistics()
+        # Referrers registered before the corresponding result entry exists.
+        # Drained into the entry when it is first created by an add_* method.
+        self._pending_referrers: dict[str, list[str]] = {}
+
+    def _drain_pending(self, url: str) -> list[str]:
+        """Return and remove any referrers queued before *url*'s entry existed.
+
+        Must be called inside ``self._lock``.
+
+        Args:
+            url: The URL whose pending referrers to drain.
+
+        Returns:
+            List of pending referrers (may be empty).
+        """
+        return self._pending_referrers.pop(url, [])
+
+    def merge_referrer(self, url: str, referrer: str) -> None:
+        """Add *referrer* to every existing result entry that tracks *url*.
+
+        If no entry for *url* exists yet (the fetch is still in-flight),
+        the referrer is queued and will be applied automatically when the
+        entry is created by the corresponding ``add_*`` call.
+
+        Args:
+            url: Canonical URL to look up.
+            referrer: Page that linked to *url*.
+        """
+        if not referrer:
+            return
+        with self._lock:
+            found = False
+            for mapping in (
+                self._broken_links,
+                self._redirects,
+                self._non200,
+                self._misplaced_assets,
+                self._non_http_links,
+                self._ignore_matches,
+                self._no_crawl_matches,
+            ):
+                entry = mapping.get(url)
+                if entry is not None:
+                    if referrer not in entry.referencing_pages:
+                        entry.referencing_pages.append(referrer)
+                    found = True
+
+            # SSL warnings are indexed by domain, not URL; search affected_urls.
+            domain = urlparse(url).netloc
+            sw = self._ssl_warnings.get(domain)
+            if sw is not None:
+                for url_entry, refs in sw.affected_urls:
+                    if url_entry == url:
+                        if referrer not in refs:
+                            refs.append(referrer)
+                        found = True
+                        break
+
+            if not found:
+                # Entry not created yet (fetch still in-flight); queue for later.
+                pending = self._pending_referrers.setdefault(url, [])
+                if referrer not in pending:
+                    pending.append(referrer)
 
     # ------------------------------------------------------------------
     # Broken links
@@ -218,6 +281,9 @@ class CrawlResults:
         with self._lock:
             if url not in self._broken_links:
                 self._broken_links[url] = BrokenLink(url=url, status_code=status_code, error=error)
+                for pending in self._drain_pending(url):
+                    if pending not in self._broken_links[url].referencing_pages:
+                        self._broken_links[url].referencing_pages.append(pending)
             if referrer not in self._broken_links[url].referencing_pages:
                 self._broken_links[url].referencing_pages.append(referrer)
 
@@ -225,7 +291,11 @@ class CrawlResults:
     def broken_links(self) -> list[BrokenLink]:
         """List of broken links sorted by URL."""
         with self._lock:
-            return sorted(self._broken_links.values(), key=lambda b: b.url)
+            return sorted(
+                (replace(b, referencing_pages=list(b.referencing_pages))
+                 for b in self._broken_links.values()),
+                key=lambda b: b.url,
+            )
 
     # ------------------------------------------------------------------
     # Redirects
@@ -253,6 +323,9 @@ class CrawlResults:
                     final_url=final_url,
                     status_code=status_code,
                 )
+                for pending in self._drain_pending(original_url):
+                    if pending not in self._redirects[original_url].referencing_pages:
+                        self._redirects[original_url].referencing_pages.append(pending)
             if referrer not in self._redirects[original_url].referencing_pages:
                 self._redirects[original_url].referencing_pages.append(referrer)
 
@@ -260,7 +333,11 @@ class CrawlResults:
     def redirects(self) -> list[RedirectInfo]:
         """List of redirects sorted by original URL."""
         with self._lock:
-            return sorted(self._redirects.values(), key=lambda r: r.original_url)
+            return sorted(
+                (replace(r, referencing_pages=list(r.referencing_pages))
+                 for r in self._redirects.values()),
+                key=lambda r: r.original_url,
+            )
 
     # ------------------------------------------------------------------
     # Broken anchors
@@ -283,7 +360,11 @@ class CrawlResults:
     def broken_anchors(self) -> list[BrokenAnchor]:
         """List of broken anchors sorted by target URL."""
         with self._lock:
-            return sorted(self._broken_anchors.values(), key=lambda a: a.target_url)
+            return sorted(
+                (replace(a, referencing_pages=list(a.referencing_pages))
+                 for a in self._broken_anchors.values()),
+                key=lambda a: a.target_url,
+            )
 
     # ------------------------------------------------------------------
     # Unvalidated anchors
@@ -310,7 +391,11 @@ class CrawlResults:
     def unvalidated_anchors(self) -> list[UnvalidatedAnchor]:
         """List of unvalidated anchors sorted by target URL."""
         with self._lock:
-            return sorted(self._unvalidated_anchors.values(), key=lambda a: a.target_url)
+            return sorted(
+                (replace(a, referencing_pages=list(a.referencing_pages))
+                 for a in self._unvalidated_anchors.values()),
+                key=lambda a: a.target_url,
+            )
 
     # ------------------------------------------------------------------
     # Non-200 responses
@@ -327,6 +412,9 @@ class CrawlResults:
         with self._lock:
             if url not in self._non200:
                 self._non200[url] = Non200Response(url=url, status_code=status_code)
+                for pending in self._drain_pending(url):
+                    if pending not in self._non200[url].referencing_pages:
+                        self._non200[url].referencing_pages.append(pending)
             if referrer not in self._non200[url].referencing_pages:
                 self._non200[url].referencing_pages.append(referrer)
 
@@ -334,7 +422,11 @@ class CrawlResults:
     def non200_responses(self) -> list[Non200Response]:
         """List of non-200 responses sorted by status code then URL."""
         with self._lock:
-            return sorted(self._non200.values(), key=lambda r: (r.status_code, r.url))
+            return sorted(
+                (replace(r, referencing_pages=list(r.referencing_pages))
+                 for r in self._non200.values()),
+                key=lambda r: (r.status_code, r.url),
+            )
 
     # ------------------------------------------------------------------
     # Misplaced assets
@@ -351,6 +443,9 @@ class CrawlResults:
         with self._lock:
             if url not in self._misplaced_assets:
                 self._misplaced_assets[url] = MisplacedAsset(url=url, asset_type=asset_type)
+                for pending in self._drain_pending(url):
+                    if pending not in self._misplaced_assets[url].referencing_pages:
+                        self._misplaced_assets[url].referencing_pages.append(pending)
             if referrer not in self._misplaced_assets[url].referencing_pages:
                 self._misplaced_assets[url].referencing_pages.append(referrer)
 
@@ -358,7 +453,11 @@ class CrawlResults:
     def misplaced_assets(self) -> list[MisplacedAsset]:
         """List of misplaced assets sorted by asset type then URL."""
         with self._lock:
-            return sorted(self._misplaced_assets.values(), key=lambda a: (a.asset_type, a.url))
+            return sorted(
+                (replace(a, referencing_pages=list(a.referencing_pages))
+                 for a in self._misplaced_assets.values()),
+                key=lambda a: (a.asset_type, a.url),
+            )
 
     # ------------------------------------------------------------------
     # SSL warnings
@@ -379,7 +478,14 @@ class CrawlResults:
             sw = self._ssl_warnings[domain]
             existing = next((t for t in sw.affected_urls if t[0] == url), None)
             if existing is None:
-                sw.affected_urls.append((url, [referrer]))
+                pending = self._drain_pending(url)
+                refs: list[str] = []
+                for p in pending:
+                    if p not in refs:
+                        refs.append(p)
+                if referrer not in refs:
+                    refs.append(referrer)
+                sw.affected_urls.append((url, refs))
             elif referrer not in existing[1]:
                 existing[1].append(referrer)
 
@@ -387,7 +493,16 @@ class CrawlResults:
     def ssl_warnings(self) -> list[SslWarning]:
         """List of SSL warnings sorted by domain."""
         with self._lock:
-            return sorted(self._ssl_warnings.values(), key=lambda s: s.domain)
+            return sorted(
+                (
+                    replace(
+                        s,
+                        affected_urls=[(url, list(refs)) for url, refs in s.affected_urls],
+                    )
+                    for s in self._ssl_warnings.values()
+                ),
+                key=lambda s: s.domain,
+            )
 
     # ------------------------------------------------------------------
     # Non-HTTP links
@@ -404,6 +519,9 @@ class CrawlResults:
         with self._lock:
             if url not in self._non_http_links:
                 self._non_http_links[url] = NonHttpLink(url=url, scheme=scheme)
+                for pending in self._drain_pending(url):
+                    if pending not in self._non_http_links[url].referencing_pages:
+                        self._non_http_links[url].referencing_pages.append(pending)
             if referrer not in self._non_http_links[url].referencing_pages:
                 self._non_http_links[url].referencing_pages.append(referrer)
 
@@ -411,7 +529,11 @@ class CrawlResults:
     def non_http_links(self) -> list[NonHttpLink]:
         """List of non-HTTP scheme links sorted by URL."""
         with self._lock:
-            return sorted(self._non_http_links.values(), key=lambda lk: lk.url)
+            return sorted(
+                (replace(lk, referencing_pages=list(lk.referencing_pages))
+                 for lk in self._non_http_links.values()),
+                key=lambda lk: lk.url,
+            )
 
     # ------------------------------------------------------------------
     # Ignore matches
@@ -427,6 +549,9 @@ class CrawlResults:
         with self._lock:
             if url not in self._ignore_matches:
                 self._ignore_matches[url] = IgnoreMatch(url=url)
+                for pending in self._drain_pending(url):
+                    if pending not in self._ignore_matches[url].referencing_pages:
+                        self._ignore_matches[url].referencing_pages.append(pending)
             if referrer not in self._ignore_matches[url].referencing_pages:
                 self._ignore_matches[url].referencing_pages.append(referrer)
 
@@ -434,7 +559,11 @@ class CrawlResults:
     def ignore_matches(self) -> list[IgnoreMatch]:
         """List of ignore matches sorted by URL."""
         with self._lock:
-            return sorted(self._ignore_matches.values(), key=lambda m: m.url)
+            return sorted(
+                (replace(m, referencing_pages=list(m.referencing_pages))
+                 for m in self._ignore_matches.values()),
+                key=lambda m: m.url,
+            )
 
     # ------------------------------------------------------------------
     # No-crawl matches
@@ -450,6 +579,9 @@ class CrawlResults:
         with self._lock:
             if url not in self._no_crawl_matches:
                 self._no_crawl_matches[url] = NoCrawlMatch(url=url)
+                for pending in self._drain_pending(url):
+                    if pending not in self._no_crawl_matches[url].referencing_pages:
+                        self._no_crawl_matches[url].referencing_pages.append(pending)
             if referrer not in self._no_crawl_matches[url].referencing_pages:
                 self._no_crawl_matches[url].referencing_pages.append(referrer)
 
@@ -457,7 +589,11 @@ class CrawlResults:
     def no_crawl_matches(self) -> list[NoCrawlMatch]:
         """List of no-crawl matches sorted by URL."""
         with self._lock:
-            return sorted(self._no_crawl_matches.values(), key=lambda m: m.url)
+            return sorted(
+                (replace(m, referencing_pages=list(m.referencing_pages))
+                 for m in self._no_crawl_matches.values()),
+                key=lambda m: m.url,
+            )
 
     # ------------------------------------------------------------------
     # Statistics

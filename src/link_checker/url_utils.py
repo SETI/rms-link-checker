@@ -10,8 +10,10 @@ HTML_EXTENSIONS: frozenset[str] = frozenset(
 
 
 def normalize_url(url: str) -> tuple[str, str | None]:
-    """Normalize a URL by lowercasing the host, stripping query params/fragments,
+    """Normalize a URL by lowercasing the host, stripping fragments,
     and canonicalizing scheme to https for http/https URLs.
+
+    Query strings are preserved as-is and treated as part of the URL identity.
 
     Args:
         url: The URL to normalize.
@@ -32,8 +34,8 @@ def normalize_url(url: str) -> tuple[str, str | None]:
             'https',
             parsed.netloc.lower(),
             parsed.path,
-            '',
-            '',
+            parsed.params,
+            parsed.query,
             '',
         )
     )

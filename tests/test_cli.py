@@ -153,3 +153,37 @@ def test_exit_code_1_broken() -> None:
         with pytest.raises(SystemExit) as exc:
             main()
         assert exc.value.code == 1
+
+
+@resp_lib.activate
+def test_log_file_option(tmp_path: Path) -> None:
+    """Passing --log-file must write log output to a file."""
+    log_file = tmp_path / 'crawl.log'
+    resp_lib.add(resp_lib.GET, 'https://example.com', body='<html/>', status=200)
+    with patch(
+        'sys.argv',
+        ['link_check', 'https://example.com', '--log-file', str(log_file)],
+    ), pytest.raises(SystemExit):
+        main()
+    assert log_file.exists()
+
+
+@resp_lib.activate
+def test_keyboard_interrupt_exits_130(tmp_path: Path) -> None:
+    """A KeyboardInterrupt during crawl must produce exit code 130."""
+    from link_checker.results import CrawlResults
+
+    resp_lib.add(resp_lib.GET, 'https://example.com', body='<html/>', status=200)
+    partial_results = CrawlResults()
+    with patch('link_checker.cli.Crawler') as mock_crawler_cls:
+        mock_instance = mock_crawler_cls.return_value
+        mock_instance.crawl.side_effect = KeyboardInterrupt
+        mock_instance.results = partial_results
+        output_file = tmp_path / 'out.txt'
+        with patch(
+            'sys.argv',
+            ['link_check', 'https://example.com', '--output', str(output_file)],
+        ), pytest.raises(SystemExit) as exc:
+            main()
+    assert exc.value.code == 130
+

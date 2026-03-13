@@ -61,19 +61,31 @@ class HttpClient:
         timeout: Timeout in seconds for each individual request attempt.
         retries: Maximum number of retry attempts for transient failures.
         user_agent: User-Agent header value to send with every request.
+        verify: TLS certificate verification.  Pass ``False`` to disable
+            (e.g. for internal environments with self-signed certificates),
+            or a path to a CA bundle.  Defaults to ``True``.
     """
 
-    def __init__(self, *, timeout: int, retries: int, user_agent: str) -> None:
+    def __init__(
+        self,
+        *,
+        timeout: int,
+        retries: int,
+        user_agent: str,
+        verify: bool | str = True,
+    ) -> None:
         """Initialise the HTTP client.
 
         Args:
             timeout: Timeout in seconds per request attempt.
             retries: Max retry attempts for transient errors.
             user_agent: User-Agent string.
+            verify: TLS verification flag or CA-bundle path.
         """
         self._timeout = timeout
         self._retries = retries
         self._user_agent = user_agent
+        self._verify: bool | str = verify
         self._session = self._make_session()
         self._ssl_warned_domains: set[str] = set()
 
@@ -137,11 +149,7 @@ class HttpClient:
                     content_type=None,
                     error=str(exc),
                 )
-            except (
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout,
-                ConnectionError,
-            ) as exc:
+            except requests.exceptions.RequestException as exc:
                 last_result = RequestResult(
                     final_url=url,
                     status_code=0,
@@ -212,6 +220,7 @@ class HttpClient:
                 allow_redirects=False,
                 timeout=self._timeout,
                 stream=True,
+                verify=self._verify,
             ) as response:
                 if response.is_redirect:
                     location = response.headers.get('Location', '')

@@ -128,6 +128,37 @@ def test_broken_link_recorded() -> None:
 
 
 @resp_lib.activate
+def test_relative_links_resolved_against_final_url_after_redirect() -> None:
+    """Relative links must be resolved against the final URL after redirects.
+
+    e.g. GET /cassini → 301 → /cassini/ and the page has href="rss/index.html"
+    should resolve to /cassini/rss/index.html, not /rss/index.html.
+    """
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        status=301,
+        headers={'Location': 'https://example.com/docs/'},
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/',
+        body='<html><body><a href="sub/page.html">sub</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/sub/page.html',
+        body='<html/>',
+        status=200,
+    )
+    cfg = _cfg()
+    results = Crawler(cfg).crawl()
+    broken_urls = [b.url for b in results.broken_links]
+    assert 'https://example.com/sub/page.html' not in broken_urls
+
+
+@resp_lib.activate
 def test_redirect_followed_and_recorded() -> None:
     resp_lib.add(
         resp_lib.GET,
@@ -146,6 +177,33 @@ def test_redirect_followed_and_recorded() -> None:
     results = Crawler(cfg).crawl()
     redirect_originals = [r.original_url for r in results.redirects]
     assert 'https://example.com/docs/old.html' in redirect_originals
+    redirect = next(
+        r for r in results.redirects if r.original_url == 'https://example.com/docs/old.html'
+    )
+    assert redirect.status_code == 301
+
+
+@resp_lib.activate
+def test_redirect_not_recorded_when_urls_are_identical_after_normalization() -> None:
+    """http→https normalization must not produce spurious redirect entries."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs',
+        body='<html><body><a href="/docs/page.html">link</a></body></html>',
+        status=200,
+    )
+    # Server responds with a 301 whose Location is the same URL (normalized)
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/page.html',
+        status=301,
+        headers={'Location': 'https://example.com/docs/page.html'},
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
+    cfg = _cfg()
+    results = Crawler(cfg).crawl()
+    redirect_originals = [r.original_url for r in results.redirects]
+    assert 'https://example.com/docs/page.html' not in redirect_originals
 
 
 # ---------------------------------------------------------------------------

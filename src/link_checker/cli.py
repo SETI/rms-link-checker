@@ -9,6 +9,7 @@ import sys
 from link_checker import __version__
 from link_checker.config import load_config
 from link_checker.crawler import Crawler
+from link_checker.progress import ProgressReporter
 from link_checker.report import generate_report
 
 
@@ -140,8 +141,22 @@ def main() -> None:
 
     _setup_logging(config.log_file, config.log_level)
 
-    crawler = Crawler(config)
-    results = crawler.crawl()
+    progress = ProgressReporter()
+    crawler = Crawler(config, progress=progress)
+    progress.start()
+    interrupted = False
+    try:
+        results = crawler.crawl()
+    except KeyboardInterrupt:
+        interrupted = True
+        print('\nInterrupted — waiting for in-flight requests to finish...', file=sys.stderr)
+        crawler.abort()
+        results = crawler._results
+    finally:
+        progress.stop()
+
+    if interrupted:
+        print('Generating partial report.', file=sys.stderr)
 
     report = generate_report(results, config)
 
@@ -151,4 +166,4 @@ def main() -> None:
     else:
         print(report, end='')
 
-    sys.exit(1 if results.has_problems() else 0)
+    sys.exit(130 if interrupted else (1 if results.has_problems() else 0))

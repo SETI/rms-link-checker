@@ -17,7 +17,7 @@ YAML Schema
    max_depth: 8
    max_threads: 20
    max_referencing_pages: 20
-   log_level: "DEBUG"
+   log_level: "debug"        # case-insensitive
    output: "report.txt"
    log_file: "crawl.log"
 
@@ -31,6 +31,13 @@ YAML Schema
 
    ignore_urls:
      - "https://example.com/legacy"
+
+.. note::
+
+   Any unrecognised key in the YAML file raises an error immediately, listing
+   all unknown keys and the complete set of valid key names. This catches
+   typos such as ``non_crawl_urls`` instead of ``no_crawl_urls`` at startup
+   rather than silently ignoring the setting.
 
 URL Classification Lists
 ------------------------

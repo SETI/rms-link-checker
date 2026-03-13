@@ -2,7 +2,8 @@ Report Format
 =============
 
 The final report is plain text written to ``--output`` (default: stdout).
-It contains 12 sections in the order described below.
+It contains 11 sections in the order described below. Each major section is
+separated by two blank lines for readability.
 
 Section 1: Configuration Summary
 ---------------------------------
@@ -38,9 +39,17 @@ Grouped by HTTP status code.
 Section 6: Redirects
 --------------------
 
-URLs that redirected to a different final URL. Shows the full redirect chain.
-Note: redirects that ultimately resolve to 200 do *not* cause a non-zero exit
-code — they are informational only.
+URLs where the server issued a 3xx redirect to a different final URL. Shows
+the original URL, final URL, and the HTTP status code of the first redirect
+hop (e.g. 301, 302). Redirects that ultimately resolve to 200 do *not* cause
+a non-zero exit code — they are informational only.
+
+.. note::
+
+   Redirects are recorded using the status code of the first redirect response
+   (e.g. 301), not the final 200. Only genuine server-side redirects to
+   different URLs are listed; same-URL redirects caused by URL normalization
+   are suppressed.
 
 Section 7: Misplaced Assets
 ----------------------------
@@ -49,31 +58,26 @@ Only present when ``asset_urls`` is configured. Assets found outside their
 expected locations, grouped by asset type (Image, Document, Data,
 Infrastructure, Other).
 
-Section 8: No-Crawl URL Matches
---------------------------------
-
-URLs that matched a ``no_crawl_urls`` prefix and were checked but not crawled.
-
-Section 9: Ignore URL Matches
+Section 8: Ignore URL Matches
 ------------------------------
 
 URLs that matched an ``ignore_urls`` prefix and were skipped entirely.
 Listed so site owners know which ignored URLs are still being referenced.
 
-Section 10: Non-HTTP Scheme Links
-----------------------------------
+Section 9: Non-HTTP Scheme Links
+---------------------------------
 
 Links with non-HTTP schemes (``mailto:``, ``tel:``, ``ftp:``, etc.) that were
 encountered during the crawl.
 
-Section 11: SSL Warnings
+Section 10: SSL Warnings
 -------------------------
 
 Domains that had SSL certificate errors. Grouped by domain. Crawling continues
 after SSL errors.
 
-Section 12: Unvalidated Anchors
---------------------------------
+Section 11: Unvalidated Anchors
+---------------------------------
 
 Fragment references that could not be validated because the target page's HTML
 was not parsed (due to no-crawl, depth limit, or external status).

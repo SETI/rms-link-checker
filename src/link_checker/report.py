@@ -30,13 +30,12 @@ def generate_report(results: CrawlResults, config: CrawlConfig) -> str:
         _section_non200_responses(results, config),
         _section_redirects(results, config),
         _section_misplaced_assets(results, config),
-        _section_no_crawl_matches(results, config),
         _section_ignore_matches(results, config),
         _section_non_http_links(results, config),
         _section_ssl_warnings(results),
         _section_unvalidated_anchors(results, config),
     ]
-    return '\n'.join(sections) + '\n'
+    return '\n\n'.join(sections) + '\n'
 
 
 # ---------------------------------------------------------------------------

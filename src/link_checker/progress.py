@@ -63,8 +63,10 @@ class ProgressReporter:
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
         estimate = checked + queued
+        urls_per_sec = checked / elapsed if elapsed > 0 else 0.0
         line = (
             f'[Progress] {checked}/~{estimate} URLs checked'
+            f' | {urls_per_sec:.1f} URLs/s'
             f' | {queued} in queue'
             f' | {threads} threads active'
             f' | {minutes}m {seconds}s elapsed'

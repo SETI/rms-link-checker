@@ -11,6 +11,24 @@ import yaml
 
 _VALID_LOG_LEVELS: frozenset[str] = frozenset({'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'})
 
+_KNOWN_YAML_KEYS: frozenset[str] = frozenset(
+    {
+        'root_url',
+        'timeout',
+        'retries',
+        'max_requests',
+        'max_depth',
+        'max_threads',
+        'max_referencing_pages',
+        'log_level',
+        'output',
+        'log_file',
+        'asset_urls',
+        'no_crawl_urls',
+        'ignore_urls',
+    }
+)
+
 
 @dataclass(frozen=True)
 class CrawlConfig:
@@ -95,7 +113,7 @@ def load_config(
     max_depth = int(max_depth_raw) if max_depth_raw is not None else None
     max_threads = int(_resolve('max_threads', 10))
     max_referencing_pages = int(_resolve('max_referencing_pages', 10))
-    log_level = str(_resolve('log_level', 'INFO'))
+    log_level = str(_resolve('log_level', 'INFO')).upper()
     output = _resolve('output')
     log_file = _resolve('log_file')
 
@@ -148,6 +166,14 @@ def _load_yaml_file(path: str) -> dict[str, Any]:
         return {}
     if not isinstance(data, dict):
         raise ValueError(f'Config file {path!r} must contain a YAML mapping, got {type(data)}')
+
+    unknown = sorted(set(data.keys()) - _KNOWN_YAML_KEYS)
+    if unknown:
+        raise ValueError(
+            f'Unknown key(s) in config file {path!r}: {", ".join(unknown)}. '
+            f'Valid keys are: {", ".join(sorted(_KNOWN_YAML_KEYS))}'
+        )
+
     return data
 
 

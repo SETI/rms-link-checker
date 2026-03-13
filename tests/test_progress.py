@@ -24,7 +24,11 @@ def test_progress_format(capfd: pytest.CaptureFixture[str]) -> None:
     reporter._emit()
     captured = capfd.readouterr()
     assert '[Progress]' in captured.err
-    assert '10' in captured.err
+    assert '10/~15' in captured.err
+    assert 'URLs/s' in captured.err
+    assert '5 in queue' in captured.err
+    assert '2 threads active' in captured.err
+    assert '0m 30s elapsed' in captured.err
 
 
 def test_progress_stop_no_more_output(capfd: pytest.CaptureFixture[str]) -> None:

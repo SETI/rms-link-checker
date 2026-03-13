@@ -271,6 +271,33 @@ def test_invalid_log_level_raises() -> None:
         load_config(ns)
 
 
+def test_unknown_yaml_key_raises(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text(
+        'root_url: "https://example.com"\nnon_crawl_urls:\n  - https://example.com/skip\n'
+    )
+    ns = _minimal_namespace()
+    with pytest.raises(ValueError, match=r'Unknown key.*non_crawl_urls'):
+        load_config(ns, config_path=str(yaml_file))
+
+
+def test_multiple_unknown_yaml_keys_raises(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text(
+        'root_url: "https://example.com"\nnon_crawl_urls: []\nextra_setting: true\n'
+    )
+    ns = _minimal_namespace()
+    with pytest.raises(ValueError, match=r'Unknown key.*extra_setting|non_crawl_urls'):
+        load_config(ns, config_path=str(yaml_file))
+
+
+def test_log_level_case_insensitive() -> None:
+    for value in ('debug', 'Debug', 'WARNING', 'warning', 'Error', 'critical', 'INFO'):
+        ns = _minimal_namespace(root_url='https://example.com', log_level=value)
+        cfg = load_config(ns)
+        assert cfg.log_level == value.upper()
+
+
 # ---------------------------------------------------------------------------
 # CrawlConfig is frozen
 # ---------------------------------------------------------------------------

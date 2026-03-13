@@ -218,18 +218,6 @@ def test_report_misplaced_assets_none_for_empty_type() -> None:
 
 
 # ---------------------------------------------------------------------------
-# §10.8 No-Crawl URL Matches
-# ---------------------------------------------------------------------------
-
-
-def test_report_no_crawl_header() -> None:
-    r = CrawlResults()
-    r.add_no_crawl_match('https://example.com/archive/p', 'https://example.com/')
-    report = generate_report(r, _cfg())
-    assert '=== No-Crawl URL Matches (1) ===' in report
-
-
-# ---------------------------------------------------------------------------
 # §10.9 Ignore URL Matches
 # ---------------------------------------------------------------------------
 
@@ -341,7 +329,7 @@ def test_report_no_truncation_when_under_limit() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_report_contains_all_12_sections() -> None:
+def test_report_contains_all_sections() -> None:
     r = CrawlResults()
     report = generate_report(r, _cfg())
     assert '=== Configuration Summary ===' in report
@@ -351,8 +339,21 @@ def test_report_contains_all_12_sections() -> None:
     assert '=== Non-200 Responses (0) ===' in report
     assert '=== Redirects (0) ===' in report
     assert '=== Misplaced Assets (0) ===' in report
-    assert '=== No-Crawl URL Matches (0) ===' in report
     assert '=== Ignore URL Matches (0) ===' in report
     assert '=== Non-HTTP Scheme Links (0) ===' in report
     assert '=== SSL Warnings (0 domains) ===' in report
     assert '=== Unvalidated Anchors (0) ===' in report
+    assert '=== No-Crawl URL Matches' not in report
+
+
+def test_report_sections_separated_by_two_blank_lines() -> None:
+    r = CrawlResults()
+    report = generate_report(r, _cfg())
+    import re
+
+    headers = list(re.finditer(r'=== ', report))
+    assert len(headers) == 11
+    for match in headers[1:]:
+        assert report[match.start() - 2 : match.start()] == '\n\n', (
+            f'Expected two blank lines before section at position {match.start()}'
+        )

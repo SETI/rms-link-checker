@@ -165,11 +165,8 @@ cython_debug/
 _work/
 **/_version.py
 nohup.out
-*.pyc
 .DS_Store
 ._*
 *~*
 *.bak
 *.*.bak
-log.txt
-profile.txt

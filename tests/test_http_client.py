@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import requests.exceptions
 import responses as resp_lib
 
 from link_checker.http_client import HttpClient, RequestResult
@@ -122,7 +123,11 @@ def test_retries_exhausted_records_error() -> None:
 
 @resp_lib.activate
 def test_connection_error_triggers_retry() -> None:
-    resp_lib.add(resp_lib.GET, 'https://example.com/page', body=ConnectionError('timeout'))
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/page',
+        body=requests.exceptions.ConnectionError('timeout'),
+    )
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=200)
     client = _make_client(timeout=1, retries=3)
     with patch('time.sleep'):

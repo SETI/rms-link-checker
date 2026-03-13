@@ -32,7 +32,7 @@ def generate_report(results: CrawlResults, config: CrawlConfig) -> str:
         _section_misplaced_assets(results, config),
         _section_ignore_matches(results, config),
         _section_non_http_links(results, config),
-        _section_ssl_warnings(results),
+        _section_ssl_warnings(results, config),
         _section_unvalidated_anchors(results, config),
     ]
     return '\n\n'.join(sections) + '\n'
@@ -55,7 +55,7 @@ def _section_config_summary(config: CrawlConfig) -> str:
     lines.append(f'Max requests:    {max_req_str}')
     lines.append(f'Max ref. pages:  {config.max_referencing_pages}')
     if config.output:
-        lines.append(f'Config file:     {config.output}')
+        lines.append(f'Output file:     {config.output}')
 
     if config.asset_urls:
         lines.append('')
@@ -328,7 +328,7 @@ def _section_non_http_links(results: CrawlResults, config: CrawlConfig) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _section_ssl_warnings(results: CrawlResults) -> str:
+def _section_ssl_warnings(results: CrawlResults, config: CrawlConfig) -> str:
     items = results.ssl_warnings
     lines = [f'=== SSL Warnings ({len(items)} domain{"s" if len(items) != 1 else ""}) ===']
     for sw in items:
@@ -338,8 +338,11 @@ def _section_ssl_warnings(results: CrawlResults) -> str:
         for url, refs in sw.affected_urls:
             lines.append(f'    - {url}')
             lines.append('      Referenced by:')
-            for page in refs:
+            for page in _truncated_pages(refs, config.max_referencing_pages):
                 lines.append(f'        - {page}')
+            extra = len(refs) - config.max_referencing_pages
+            if extra > 0:
+                lines.append(f'        ... and {extra} more referencing pages')
     return '\n'.join(lines)
 
 

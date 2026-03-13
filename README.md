@@ -45,7 +45,7 @@ Full documentation is available at
 - YAML configuration file support with CLI override precedence
 - Non-HTTP scheme links (mailto:, tel:, etc.) recorded and reported
 - SSL certificate errors reported per domain
-- Plain-text report with 12 sections
+- Plain-text report with 11 sections
 
 # Installation
 

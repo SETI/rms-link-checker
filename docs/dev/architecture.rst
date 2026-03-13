@@ -31,7 +31,7 @@ All source code lives under ``src/link_checker/``.
    * - ``crawler.py``
      - Main crawl engine with ``ThreadPoolExecutor``
    * - ``report.py``
-     - Plain-text report generator (12 sections)
+     - Plain-text report generator
    * - ``progress.py``
      - Periodic stderr progress updates
 

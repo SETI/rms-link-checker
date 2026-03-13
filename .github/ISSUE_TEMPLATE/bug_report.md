@@ -17,7 +17,7 @@ labels: bug
 ## Steps to Reproduce
 
 ```python
-import rms-link-checker
+import link_checker
 # minimal reproduction here
 ```
 

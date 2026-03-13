@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 
 import pytest
 
@@ -18,9 +19,6 @@ from link_checker.config import CrawlConfig, load_config
 
 def _cfg(
     root_url: str = 'https://example.com/docs',
-    asset_urls: tuple[str, ...] = (),
-    no_crawl_urls: tuple[str, ...] = (),
-    ignore_urls: tuple[str, ...] = (),
     max_depth: int | None = None,
 ) -> CrawlConfig:
     """Build a minimal CrawlConfig for testing."""
@@ -62,8 +60,6 @@ def _cfg_with_lists(
         log_file=None,
         config_file=None,
     )
-    from dataclasses import replace
-
     return replace(
         load_config(ns),
         asset_urls=asset_urls,

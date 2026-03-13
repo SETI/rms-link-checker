@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import re
+from dataclasses import replace
 
 from link_checker.config import CrawlConfig, load_config
 from link_checker.report import generate_report
@@ -59,8 +61,6 @@ def test_report_config_summary_defaults() -> None:
 
 
 def test_report_config_summary_asset_urls() -> None:
-    from dataclasses import replace
-
     cfg = replace(_cfg(), asset_urls=('https://example.com/static',))
     r = CrawlResults()
     report = generate_report(r, cfg)
@@ -349,7 +349,6 @@ def test_report_contains_all_sections() -> None:
 def test_report_sections_separated_by_two_blank_lines() -> None:
     r = CrawlResults()
     report = generate_report(r, _cfg())
-    import re
 
     headers = list(re.finditer(r'=== ', report))
     assert len(headers) == 11

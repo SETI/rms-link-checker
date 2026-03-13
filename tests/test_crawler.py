@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 
+import requests.exceptions
 import responses as resp_lib
 
 from link_checker.config import CrawlConfig, load_config
@@ -30,8 +32,6 @@ def _cfg(**kwargs: object) -> CrawlConfig:
 
 def _cfg_with(**kwargs: object) -> CrawlConfig:
     """Build config with explicit keyword params, including URL lists."""
-    from dataclasses import replace
-
     base = _cfg(root_url=kwargs.pop('root_url', 'https://example.com/docs'))
     return replace(base, **kwargs)  # type: ignore[arg-type]
 
@@ -375,14 +375,14 @@ def test_no_crawl_prefix_checked_not_crawled() -> None:
     resp_lib.add(
         resp_lib.GET,
         'https://example.com/docs',
-        body='<html><body><a href="https://example.com/archive/page.html">arch</a></body></html>',
+        body='<html><body><a href="https://example.com/docs/archive/page.html">arch</a></body></html>',
         status=200,
     )
-    resp_lib.add(resp_lib.HEAD, 'https://example.com/archive/page.html', status=200)
-    cfg = _cfg_with(no_crawl_urls=('https://example.com/archive',))
+    resp_lib.add(resp_lib.HEAD, 'https://example.com/docs/archive/page.html', status=200)
+    cfg = _cfg_with(no_crawl_urls=('https://example.com/docs/archive',))
     results = Crawler(cfg).crawl()
     nc_urls = [m.url for m in results.no_crawl_matches]
-    assert 'https://example.com/archive/page.html' in nc_urls
+    assert 'https://example.com/docs/archive/page.html' in nc_urls
 
 
 # ---------------------------------------------------------------------------
@@ -561,8 +561,6 @@ def test_base_href_resolution() -> None:
 
 @resp_lib.activate
 def test_ssl_error_warns_per_domain() -> None:
-    import requests.exceptions
-
     resp_lib.add(
         resp_lib.GET,
         'https://example.com/docs',
@@ -578,6 +576,21 @@ def test_ssl_error_warns_per_domain() -> None:
     results = Crawler(cfg).crawl()
     assert len(results.ssl_warnings) == 1
     assert results.ssl_warnings[0].domain == 'bad-ssl.example.com'
+
+
+@resp_lib.activate
+def test_ssl_error_on_internal_page_warns_and_continues() -> None:
+    """SSL error on an internal GET must record a warning and not abort the crawl."""
+    cfg = _cfg(root_url='https://bad-ssl.example.com/docs')
+    resp_lib.add(
+        resp_lib.GET,
+        'https://bad-ssl.example.com/docs',
+        body=requests.exceptions.SSLError('certificate verify failed'),
+    )
+    results = Crawler(cfg).crawl()
+    domains = [sw.domain for sw in results.ssl_warnings]
+    assert 'bad-ssl.example.com' in domains
+    # crawl must not raise — reaching here means it continued cleanly
 
 
 # ---------------------------------------------------------------------------

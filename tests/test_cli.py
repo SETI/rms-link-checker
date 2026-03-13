@@ -89,7 +89,7 @@ def test_config_file_loaded(tmp_path: Path) -> None:
         with patch('sys.argv', ['link_check', '--config-file', str(yaml_file)]):
             with pytest.raises(SystemExit) as exc:
                 main()
-            assert exc.value.code in (0, 1)
+            assert exc.value.code == 0
 
 
 def test_cli_overrides_config(tmp_path: Path) -> None:
@@ -108,7 +108,7 @@ def test_cli_overrides_config(tmp_path: Path) -> None:
         ):
             with pytest.raises(SystemExit) as exc:
                 main()
-            assert exc.value.code in (0, 1)
+            assert exc.value.code == 0
 
 
 def test_missing_root_url_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
@@ -125,7 +125,7 @@ def test_output_to_file(tmp_path: Path) -> None:
         with patch('sys.argv', ['link_check', 'https://example.com', '-o', str(output_file)]):
             with pytest.raises(SystemExit) as exc:
                 main()
-            assert exc.value.code in (0, 1)
+            assert exc.value.code == 0
     assert output_file.exists()
     content = output_file.read_text()
     assert '=== Configuration Summary ===' in content

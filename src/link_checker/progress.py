@@ -74,23 +74,26 @@ class ProgressReporter:
         print(line, file=sys.stderr, flush=True)
 
     def _schedule(self) -> None:
-        if self._stopped:
-            return
         self._emit()
-        self._timer = threading.Timer(self._interval, self._schedule)
-        self._timer.daemon = True
-        self._timer.start()
+        with self._lock:
+            if self._stopped:
+                return
+            self._timer = threading.Timer(self._interval, self._schedule)
+            self._timer.daemon = True
+            self._timer.start()
 
     def start(self) -> None:
         """Start emitting periodic progress updates."""
-        self._stopped = False
-        self._timer = threading.Timer(self._interval, self._schedule)
-        self._timer.daemon = True
-        self._timer.start()
+        with self._lock:
+            self._stopped = False
+            self._timer = threading.Timer(self._interval, self._schedule)
+            self._timer.daemon = True
+            self._timer.start()
 
     def stop(self) -> None:
         """Stop emitting progress updates."""
-        self._stopped = True
-        if self._timer is not None:
-            self._timer.cancel()
-            self._timer = None
+        with self._lock:
+            self._stopped = True
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None

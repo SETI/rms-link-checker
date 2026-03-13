@@ -7,7 +7,7 @@ import logging
 import queue
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
@@ -18,7 +18,7 @@ from link_checker.classifier import (
     is_misplaced_asset,
 )
 from link_checker.config import CrawlConfig
-from link_checker.html_parser import extract_anchors, extract_links, find_base_href
+from link_checker.html_parser import extract_anchors, extract_links
 from link_checker.http_client import HttpClient, RequestResult
 from link_checker.progress import ProgressReporter
 from link_checker.results import CrawlResults
@@ -93,7 +93,7 @@ class Crawler:
         self._start_time = 0.0
         self._active_threads = 0
         self._active_threads_lock = threading.Lock()
-        self._aborted = False
+        self._abort_event = threading.Event()
 
     def abort(self) -> None:
         """Signal the crawl to stop after in-flight requests complete.
@@ -101,7 +101,7 @@ class Crawler:
         Safe to call from any thread (e.g. a signal handler). Already-submitted
         workers finish naturally; no new URLs are dequeued or requested.
         """
-        self._aborted = True
+        self._abort_event.set()
 
     def crawl(self) -> CrawlResults:
         """Run the full crawl starting from ``config.root_url``.
@@ -120,7 +120,7 @@ class Crawler:
             submitted: set[str] = set()
 
             while True:
-                while not work_queue.empty() and not self._aborted:
+                while not work_queue.empty() and not self._abort_event.is_set():
                     try:
                         item = work_queue.get_nowait()
                     except queue.Empty:
@@ -135,15 +135,10 @@ class Crawler:
                 if not futures_map:
                     break
 
-                done = []
-                for fut in list(futures_map):
-                    if fut.done():
-                        done.append(fut)
+                done_set, _ = wait(futures_map.keys(), timeout=5.0, return_when=FIRST_COMPLETED)
 
-                if self._aborted and not done and not futures_map:
-                    break
-
-                if not done:
+                if not done_set:
+                    # Timeout elapsed with no completions — emit a progress update.
                     if self._progress is not None:
                         with self._request_count_lock:
                             checked = self._request_count
@@ -155,10 +150,9 @@ class Crawler:
                             active_threads=active,
                             elapsed=time.time() - self._start_time,
                         )
-                    time.sleep(0.01)
                     continue
 
-                for fut in done:
+                for fut in done_set:
                     del futures_map[fut]
                     try:
                         fut.result()
@@ -174,7 +168,7 @@ class Crawler:
 
     def _increment_request_count(self) -> bool:
         """Atomically increment request count. Returns False if max reached or aborted."""
-        if self._aborted:
+        if self._abort_event.is_set():
             return False
         if self._config.max_requests is None:
             with self._request_count_lock:
@@ -333,8 +327,7 @@ class Crawler:
         if fragment:
             self._validate_anchor(url, fragment, url + '#' + fragment, referrer)
 
-        base_href = find_base_href(result.body)
-        links = extract_links(result.body, result.final_url, base_url=base_href)
+        links = extract_links(result.body, result.final_url)
         logger.debug('Found %d links on %s', len(links), url)
 
         for link in links:
@@ -400,7 +393,15 @@ class Crawler:
                 logger.debug('Redirect %s → %s (%d)', url, result.final_url, redirect_status)
                 self._results.add_redirect(url, result.final_url, redirect_status, referrer)
 
-        if result.status_code >= 400:
+        if result.error:
+            domain = urlparse(url).netloc
+            if domain in self._http.ssl_warned_domains:
+                logger.debug('SSL error %s: %s', url, result.error)
+                self._results.add_ssl_warning(url, domain, result.error, referrer)
+            else:
+                logger.debug('Error %s: %s', url, result.error)
+                self._results.add_broken_link(url, result.status_code, result.error, referrer)
+        elif result.status_code >= 400:
             logger.debug('Broken link %s status=%d', url, result.status_code)
             self._results.add_broken_link(
                 url, result.status_code, f'{result.status_code}', referrer
@@ -408,14 +409,6 @@ class Crawler:
 
         if result.status_code != 200 and result.status_code != 0:
             self._results.add_non200(url, result.status_code, referrer)
-
-        if result.error:
-            domain = urlparse(url).netloc
-            if domain in self._http.ssl_warned_domains:
-                self._results.add_ssl_warning(url, domain, result.error, referrer)
-            else:
-                logger.debug('Error %s: %s', url, result.error)
-                self._results.add_broken_link(url, result.status_code, result.error, referrer)
 
     def _validate_anchor(
         self,
@@ -436,15 +429,3 @@ class Crawler:
             logger.debug(
                 'Anchor %s on %s cannot be validated (page not crawled)', fragment, page_url
             )
-
-
-def _is_html_content_type(content_type: str) -> bool:
-    """Return True if *content_type* indicates HTML.
-
-    Args:
-        content_type: Value of the Content-Type header.
-
-    Returns:
-        True for text/html content types.
-    """
-    return 'text/html' in content_type.lower()

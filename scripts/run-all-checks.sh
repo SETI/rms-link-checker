@@ -395,21 +395,27 @@ if [ "$PARALLEL" = true ]; then
 else
     # Sequential
     if [ "$RUN_CODE" = true ]; then
-        if ! run_code_checks; then
+        code_status="$TEMP_DIR/code.status"
+        if ! run_code_checks "" "$code_status"; then
             EXIT_CODE=1
         fi
+        _collect_status "$code_status"
     fi
 
     if [ "$RUN_SPHINX" = true ]; then
-        if ! run_sphinx_build; then
+        sphinx_status="$TEMP_DIR/sphinx.status"
+        if ! run_sphinx_build "" "$sphinx_status"; then
             EXIT_CODE=1
         fi
+        _collect_status "$sphinx_status"
     fi
 
     if [ "$RUN_MARKDOWN" = true ]; then
-        if ! run_markdown_checks; then
+        markdown_status="$TEMP_DIR/markdown.status"
+        if ! run_markdown_checks "" "$markdown_status"; then
             EXIT_CODE=1
         fi
+        _collect_status "$markdown_status"
     fi
 fi
 

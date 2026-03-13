@@ -24,8 +24,8 @@ Options
      - Description
    * - ``ROOT_URL``
      - string
-     - (required)
-     - Root URL to begin crawling.
+     - required unless set in config
+     - Root URL to begin crawling when not provided by ``--config-file``.
    * - ``-o``, ``--output``
      - path
      - stdout

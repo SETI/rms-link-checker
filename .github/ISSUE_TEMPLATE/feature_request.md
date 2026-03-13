@@ -14,7 +14,7 @@ labels: enhancement
 
 ```python
 # Example usage
-result = rms-link-checker.new_function(arg)
+result = link_checker.new_function(arg)
 ```
 
 ## Alternatives Considered

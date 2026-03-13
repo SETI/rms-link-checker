@@ -265,6 +265,22 @@ def test_invalid_retries_negative_raises() -> None:
         load_config(ns)
 
 
+def test_non_integer_timeout_raises(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text('root_url: "https://example.com"\ntimeout: "fast"\n')
+    ns = _minimal_namespace()
+    with pytest.raises(ValueError, match=r'timeout must be an integer'):
+        load_config(ns, config_path=str(yaml_file))
+
+
+def test_non_integer_max_requests_raises(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text('root_url: "https://example.com"\nmax_requests: "lots"\n')
+    ns = _minimal_namespace()
+    with pytest.raises(ValueError, match=r'max_requests must be an integer'):
+        load_config(ns, config_path=str(yaml_file))
+
+
 def test_invalid_log_level_raises() -> None:
     ns = _minimal_namespace(root_url='https://example.com', log_level='VERBOSE')
     with pytest.raises(ValueError, match=r'log_level|log level'):

@@ -22,7 +22,7 @@ _LINK_SPEC: list[tuple[str, str, bool]] = [
     ('audio', 'src', True),
     ('object', 'data', True),
     ('embed', 'src', True),
-    ('form', 'action', True),
+    ('form', 'action', False),
 ]
 
 
@@ -65,7 +65,7 @@ def extract_links(
     """
     soup = BeautifulSoup(html, 'html.parser')
 
-    effective_base = base_url or find_base_href(html) or page_url
+    effective_base = base_url or _find_base_href_from_soup(soup) or page_url
 
     results: list[ExtractedLink] = []
     seen: set[tuple[str, str, str]] = set()
@@ -142,7 +142,25 @@ def find_base_href(html: str) -> str | None:
         The href value, or None if no ``<base href>`` is found.
     """
     soup = BeautifulSoup(html, 'html.parser')
-    base_tag = soup.find('base')
+    return _find_base_href_from_soup(soup)
+
+
+def _find_base_href_from_soup(soup: BeautifulSoup) -> str | None:
+    """Return the first ``<base href>`` value from the document ``<head>``.
+
+    Searches only within ``<head>`` per the HTML specification, which requires
+    ``<base>`` to be a child of ``<head>``.
+
+    Args:
+        soup: Parsed :class:`~bs4.BeautifulSoup` document.
+
+    Returns:
+        The href value, or None if no ``<head>`` or no ``<base href>`` is found.
+    """
+    head = soup.head
+    if head is None:
+        return None
+    base_tag = head.find('base')
     if not isinstance(base_tag, Tag):
         return None
     href = base_tag.get('href')

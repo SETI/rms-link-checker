@@ -45,6 +45,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--log-level',
         default=None,
+        type=str.upper,
         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         metavar='LEVEL',
         help='Minimum log level (default: INFO).',
@@ -123,6 +124,8 @@ def _setup_logging(log_file: str | None, log_level: str) -> None:
     handler.setFormatter(formatter)
     log = logging.getLogger('link_checker')
     log.setLevel(numeric_level)
+    for h in log.handlers:
+        h.close()
     log.handlers.clear()
     log.addHandler(handler)
     log.propagate = False

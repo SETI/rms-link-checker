@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 import requests.exceptions
@@ -206,36 +206,36 @@ class HttpClient:
         current_url = url
 
         for _ in range(_MAX_REDIRECTS + 1):
-            response = self._session.request(
+            with self._session.request(
                 method,
                 current_url,
                 allow_redirects=False,
                 timeout=self._timeout,
                 stream=True,
-            )
-            if response.is_redirect:
-                location = response.headers.get('Location', '')
-                redirect_chain.append(
-                    RedirectHop(url=current_url, status_code=response.status_code)
+            ) as response:
+                if response.is_redirect:
+                    location = response.headers.get('Location', '')
+                    redirect_chain.append(
+                        RedirectHop(url=current_url, status_code=response.status_code)
+                    )
+                    current_url = urljoin(current_url, location)
+                    continue
+
+                body: str | None = None
+                bytes_downloaded = 0
+                if method == 'GET':
+                    body = response.text
+                    bytes_downloaded = len(response.content)
+
+                return RequestResult(
+                    final_url=current_url,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    body=body,
+                    content_type=response.headers.get('Content-Type'),
+                    redirect_chain=redirect_chain,
+                    bytes_downloaded=bytes_downloaded,
                 )
-                current_url = location
-                continue
-
-            body: str | None = None
-            bytes_downloaded = 0
-            if method == 'GET':
-                body = response.text
-                bytes_downloaded = len(response.content)
-
-            return RequestResult(
-                final_url=current_url,
-                status_code=response.status_code,
-                headers=dict(response.headers),
-                body=body,
-                content_type=response.headers.get('Content-Type'),
-                redirect_chain=redirect_chain,
-                bytes_downloaded=bytes_downloaded,
-            )
 
         return RequestResult(
             final_url=current_url,

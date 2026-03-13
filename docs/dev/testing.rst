@@ -62,7 +62,7 @@ Test Structure
    * - ``test_results.py``
      - Thread-safe results aggregation
    * - ``test_report.py``
-     - All 12 report sections
+     - All report sections
    * - ``test_crawler.py``
      - End-to-end crawl scenarios
    * - ``test_cli.py``

@@ -13,6 +13,7 @@ from link_checker.url_utils import (
     is_same_domain,
     is_under_root,
     matches_prefix,
+    normalize_url,
 )
 
 # ---------------------------------------------------------------------------
@@ -127,8 +128,6 @@ def classify_url(
     for prefix in config.ignore_urls:
         if matches_prefix(url, prefix):
             return UrlDisposition.IGNORED
-
-    from link_checker.url_utils import normalize_url
 
     canonical, _ = normalize_url(url)
     if canonical in visited_set:

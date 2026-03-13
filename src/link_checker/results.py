@@ -5,6 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from dataclasses import dataclass, field
+from urllib.parse import urlparse
 
 
 @dataclass
@@ -31,7 +32,7 @@ class RedirectInfo:
     Attributes:
         original_url: The URL that redirected.
         final_url: The URL after all redirects.
-        status_code: The final HTTP status code.
+        status_code: The HTTP status code of the first redirect hop (e.g. 301, 302).
         referencing_pages: Pages that contained the original URL.
     """
 
@@ -478,8 +479,6 @@ class CrawlResults:
             crawled: True if the page was crawled (GET + parsed).
             external: True if the URL was external.
         """
-        from urllib.parse import urlparse
-
         domain = urlparse(url).netloc
         with self._lock:
             self._statistics.total_requests += 1

@@ -12,10 +12,16 @@ from link_checker.progress import ProgressReporter
 def test_progress_emits_to_stderr(capfd: pytest.CaptureFixture[str]) -> None:
     reporter = ProgressReporter(interval=0.05)
     reporter.start()
-    time.sleep(0.15)
-    reporter.stop()
-    captured = capfd.readouterr()
-    assert '[Progress]' in captured.err
+    try:
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if '[Progress]' in capfd.readouterr().err:
+                break
+            time.sleep(0.01)
+        else:
+            pytest.fail('ProgressReporter did not emit within 2 seconds')
+    finally:
+        reporter.stop()
 
 
 def test_progress_format(capfd: pytest.CaptureFixture[str]) -> None:

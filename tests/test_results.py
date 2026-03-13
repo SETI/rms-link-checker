@@ -147,6 +147,29 @@ def test_thread_safety_concurrent_adds() -> None:
     assert len(r.broken_links) == 50
 
 
+def test_thread_safety_broken_link_deduplication() -> None:
+    """Many threads adding the same broken URL with distinct referrers must produce
+    exactly one BrokenLink entry whose referencing_pages contains every referrer."""
+    r = CrawlResults()
+    n = 50
+    referrers = [f'https://example.com/page{i}' for i in range(n)]
+    threads = [
+        threading.Thread(
+            target=r.add_broken_link,
+            args=('https://example.com/broken', 404, 'Not Found', ref),
+        )
+        for ref in referrers
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(r.broken_links) == 1
+    entry = r.broken_links[0]
+    assert entry.url == 'https://example.com/broken'
+    assert sorted(entry.referencing_pages) == sorted(referrers)
+
+
 def test_thread_safety_record_request() -> None:
     r = CrawlResults()
     threads = []

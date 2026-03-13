@@ -105,14 +105,18 @@ def load_config(
             'root_url is required: provide it as a positional argument or in the config file.'
         )
 
-    timeout = int(_resolve('timeout', 10))
-    retries = int(_resolve('retries', 3))
+    timeout = _coerce_int(_resolve('timeout', 10), 'timeout')
+    retries = _coerce_int(_resolve('retries', 3), 'retries')
     max_requests_raw = _resolve('max_requests')
-    max_requests = int(max_requests_raw) if max_requests_raw is not None else None
+    max_requests = (
+        _coerce_int(max_requests_raw, 'max_requests') if max_requests_raw is not None else None
+    )
     max_depth_raw = _resolve('max_depth')
-    max_depth = int(max_depth_raw) if max_depth_raw is not None else None
-    max_threads = int(_resolve('max_threads', 10))
-    max_referencing_pages = int(_resolve('max_referencing_pages', 10))
+    max_depth = _coerce_int(max_depth_raw, 'max_depth') if max_depth_raw is not None else None
+    max_threads = _coerce_int(_resolve('max_threads', 10), 'max_threads')
+    max_referencing_pages = _coerce_int(
+        _resolve('max_referencing_pages', 10), 'max_referencing_pages'
+    )
     log_level = str(_resolve('log_level', 'INFO')).upper()
     output = _resolve('output')
     log_file = _resolve('log_file')
@@ -175,6 +179,25 @@ def _load_yaml_file(path: str) -> dict[str, Any]:
         )
 
     return data
+
+
+def _coerce_int(value: Any, field: str) -> int:
+    """Coerce *value* to int, raising :exc:`ValueError` with a clear message on failure.
+
+    Args:
+        value: The raw value to coerce.
+        field: The field name, used in the error message.
+
+    Returns:
+        Integer representation of *value*.
+
+    Raises:
+        ValueError: If *value* cannot be converted to an integer.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'{field} must be an integer, got {value!r}') from None
 
 
 def _validate(*, timeout: int, retries: int, log_level: str) -> None:

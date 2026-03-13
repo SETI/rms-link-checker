@@ -87,14 +87,14 @@ def load_config(
         ValueError: If required fields are missing, the config file cannot be
             parsed, or any value fails validation.
     """
-    effective_path = config_path or getattr(cli_namespace, 'config_file', None)
+    effective_path = config_path or cli_namespace.config_file
 
     yaml_data: dict[str, Any] = {}
     if effective_path is not None:
         yaml_data = _load_yaml_file(effective_path)
 
     def _resolve(key: str, default: Any = None) -> Any:
-        cli_val = getattr(cli_namespace, key, None)
+        cli_val = vars(cli_namespace).get(key)
         if cli_val is not None:
             return cli_val
         return yaml_data.get(key, default)

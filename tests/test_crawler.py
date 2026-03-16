@@ -11,10 +11,13 @@ import responses as resp_lib
 from link_checker.config import CrawlConfig, load_config
 from link_checker.crawler import Crawler
 
+# Disable inter-retry sleeps for all crawler tests so they run fast.
+_NO_SLEEP: object = staticmethod(lambda _: None)
+
 
 def _cfg(**kwargs: object) -> CrawlConfig:
     defaults: dict[str, object] = {
-        'root_url': 'https://example.com/docs',
+        'root_url': 'https://example.com/docs/',
         'timeout': None,
         'retries': None,
         'max_requests': None,
@@ -32,8 +35,18 @@ def _cfg(**kwargs: object) -> CrawlConfig:
 
 def _cfg_with(**kwargs: object) -> CrawlConfig:
     """Build config with explicit keyword params, including URL lists."""
-    base = _cfg(root_url=kwargs.pop('root_url', 'https://example.com/docs'))
+    base = _cfg(root_url=kwargs.pop('root_url', 'https://example.com/docs/'))
     return replace(base, **kwargs)  # type: ignore[arg-type]
+
+
+def _crawl(cfg: CrawlConfig) -> object:
+    """Run a crawl with sleep disabled so tests never wait on retries."""
+    return Crawler(cfg, sleep=_NO_SLEEP).crawl()  # type: ignore[arg-type]
+
+
+def _make_crawler(cfg: CrawlConfig) -> Crawler:
+    """Construct a Crawler with sleep disabled."""
+    return Crawler(cfg, sleep=_NO_SLEEP)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -44,10 +57,10 @@ def _cfg_with(**kwargs: object) -> CrawlConfig:
 @resp_lib.activate
 def test_single_page_no_links() -> None:
     resp_lib.add(
-        resp_lib.GET, 'https://example.com/docs', body='<html><body></body></html>', status=200
+        resp_lib.GET, 'https://example.com/docs/', body='<html><body></body></html>', status=200
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 1
     assert not results.broken_links
 
@@ -56,13 +69,13 @@ def test_single_page_no_links() -> None:
 def test_two_pages_linked() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/page2.html">link</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page2.html', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 2
     assert not results.broken_links
 
@@ -76,13 +89,13 @@ def test_two_pages_linked() -> None:
 def test_external_link_head_checked() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://external.com/page">ext</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://external.com/page', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.external_checked == 1
     assert not results.broken_links
 
@@ -91,14 +104,14 @@ def test_external_link_head_checked() -> None:
 def test_external_link_head_405_falls_back() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://external.com/page">ext</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://external.com/page', status=405)
     resp_lib.add(resp_lib.GET, 'https://external.com/page', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert not results.broken_links
 
 
@@ -111,13 +124,13 @@ def test_external_link_head_405_falls_back() -> None:
 def test_broken_link_recorded() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/missing.html">m</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/missing.html', status=404)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     broken_urls = [bl.url for bl in results.broken_links]
     assert 'https://example.com/docs/missing.html' in broken_urls
 
@@ -131,38 +144,39 @@ def test_broken_link_recorded() -> None:
 def test_relative_links_resolved_against_final_url_after_redirect() -> None:
     """Relative links must be resolved against the final URL after redirects.
 
-    e.g. GET /cassini → 301 → /cassini/ and the page has href="rss/index.html"
-    should resolve to /cassini/rss/index.html, not /rss/index.html.
+    e.g. GET /docs/section → 301 → /docs/section/ and the page has
+    href="rss/index.html" should resolve to /docs/section/rss/index.html,
+    not /docs/rss/index.html.
     """
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
-        status=301,
-        headers={'Location': 'https://example.com/docs/'},
+        'https://example.com/docs/',
+        body='<html><body><a href="section">s</a></body></html>',
+        status=200,
     )
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs/',
+        'https://example.com/docs/section/',
         body='<html><body><a href="sub/page.html">sub</a></body></html>',
         status=200,
     )
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs/sub/page.html',
+        'https://example.com/docs/section/sub/page.html',
         body='<html/>',
         status=200,
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     broken_urls = [b.url for b in results.broken_links]
-    assert 'https://example.com/sub/page.html' not in broken_urls
+    assert 'https://example.com/docs/sub/page.html' not in broken_urls
 
 
 @resp_lib.activate
 def test_redirect_followed_and_recorded() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/old.html">link</a></body></html>',
         status=200,
     )
@@ -174,7 +188,7 @@ def test_redirect_followed_and_recorded() -> None:
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/new.html', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     redirect_originals = [r.original_url for r in results.redirects]
     assert 'https://example.com/docs/old.html' in redirect_originals
     redirect = next(
@@ -188,7 +202,7 @@ def test_redirect_not_recorded_when_urls_are_identical_after_normalization() -> 
     """http→https normalization must not produce spurious redirect entries."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/page.html">link</a></body></html>',
         status=200,
     )
@@ -201,7 +215,7 @@ def test_redirect_not_recorded_when_urls_are_identical_after_normalization() -> 
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     redirect_originals = [r.original_url for r in results.redirects]
     assert 'https://example.com/docs/page.html' not in redirect_originals
 
@@ -215,7 +229,7 @@ def test_redirect_not_recorded_when_urls_are_identical_after_normalization() -> 
 def test_fragment_valid_anchor() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/page.html#section1">link</a></body></html>',
         status=200,
     )
@@ -226,7 +240,7 @@ def test_fragment_valid_anchor() -> None:
         status=200,
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert not results.broken_anchors
 
 
@@ -234,7 +248,7 @@ def test_fragment_valid_anchor() -> None:
 def test_fragment_missing_anchor() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/page.html#bad">link</a></body></html>',
         status=200,
     )
@@ -245,7 +259,7 @@ def test_fragment_missing_anchor() -> None:
         status=200,
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert any('bad' in ba.target_url for ba in results.broken_anchors)
 
 
@@ -253,7 +267,7 @@ def test_fragment_missing_anchor() -> None:
 def test_fragment_on_already_visited_page_no_refetch() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/page.html">no frag</a>'
@@ -269,7 +283,7 @@ def test_fragment_on_already_visited_page_no_refetch() -> None:
         status=200,
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert not results.broken_anchors
     assert results.statistics.total_requests == 2
 
@@ -283,7 +297,7 @@ def test_fragment_on_already_visited_page_no_refetch() -> None:
 def test_visit_once_different_schemes() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="http://example.com/docs/page.html">http</a>'
@@ -294,7 +308,7 @@ def test_visit_once_different_schemes() -> None:
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 2
 
 
@@ -302,7 +316,7 @@ def test_visit_once_different_schemes() -> None:
 def test_visit_once_same_url_visited_only_once() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/page.html">link1</a>'
@@ -313,7 +327,7 @@ def test_visit_once_same_url_visited_only_once() -> None:
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 2
 
 
@@ -322,7 +336,7 @@ def test_visit_once_query_params_distinct() -> None:
     """URLs with different query strings are treated as distinct resources."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/page.html?a=1">link1</a>'
@@ -334,7 +348,7 @@ def test_visit_once_query_params_distinct() -> None:
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html?a=1', body='<html/>', status=200)
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html?b=2', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 3
 
 
@@ -347,13 +361,13 @@ def test_visit_once_query_params_distinct() -> None:
 def test_depth_limit_enforced() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/level1/page.html">l1</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/docs/level1/page.html', status=200)
     cfg = _cfg_with(max_depth=0)
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 2
     assert results.statistics.pages_crawled == 1
 
@@ -367,7 +381,7 @@ def test_depth_limit_enforced() -> None:
 def test_max_requests_limit() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/a.html">a</a>'
@@ -382,7 +396,7 @@ def test_max_requests_limit() -> None:
             resp_lib.GET, f'https://example.com/docs/{page}.html', body='<html/>', status=200
         )
     cfg = _cfg_with(max_requests=2)
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests <= 2
 
 
@@ -395,13 +409,13 @@ def test_max_requests_limit() -> None:
 def test_no_crawl_prefix_checked_not_crawled() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://example.com/docs/archive/page.html">arch</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/docs/archive/page.html', status=200)
     cfg = _cfg_with(no_crawl_urls=('https://example.com/docs/archive',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     nc_urls = [m.url for m in results.no_crawl_matches]
     assert 'https://example.com/docs/archive/page.html' in nc_urls
     # The HEAD request for the no-crawl URL must be counted in statistics.
@@ -417,12 +431,12 @@ def test_no_crawl_prefix_checked_not_crawled() -> None:
 def test_ignore_prefix_not_checked() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://example.com/legacy/old.html">leg</a></body></html>',
         status=200,
     )
     cfg = _cfg_with(ignore_urls=('https://example.com/legacy',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     ig_urls = [m.url for m in results.ignore_matches]
     assert 'https://example.com/legacy/old.html' in ig_urls
     assert results.statistics.total_requests == 1
@@ -437,12 +451,12 @@ def test_ignore_prefix_not_checked() -> None:
 def test_non_http_scheme_logged() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="mailto:user@example.com">email</a></body></html>',
         status=200,
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     non_http = [lk.url for lk in results.non_http_links]
     assert 'mailto:user@example.com' in non_http
 
@@ -456,13 +470,13 @@ def test_non_http_scheme_logged() -> None:
 def test_asset_classified_and_checked() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><img src="/docs/img/logo.png"></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/docs/img/logo.png', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 2
     assert not results.broken_links
 
@@ -476,28 +490,48 @@ def test_asset_classified_and_checked() -> None:
 def test_misplaced_asset_detected() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><img src="/docs/img/logo.png"></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/docs/img/logo.png', status=200)
     cfg = _cfg_with(asset_urls=('https://example.com/static',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     misplaced_urls = [a.url for a in results.misplaced_assets]
     assert 'https://example.com/docs/img/logo.png' in misplaced_urls
+
+
+@resp_lib.activate
+def test_misplaced_asset_detected_via_anchor_href() -> None:
+    """Documents linked via <a href> must also be detected as misplaced assets.
+
+    Previously only links with is_asset=True (img, script, etc.) were checked;
+    <a href> links to .pdf/.csv/.txt files were silently skipped.
+    """
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/',
+        body='<html><body><a href="/docs/data/report.csv">CSV</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/data/report.csv', status=200)
+    cfg = _cfg_with(asset_urls=('https://example.com/static',))
+    results = _crawl(cfg)
+    misplaced_urls = [a.url for a in results.misplaced_assets]
+    assert 'https://example.com/docs/data/report.csv' in misplaced_urls
 
 
 @resp_lib.activate
 def test_misplaced_asset_external_excluded() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><img src="https://cdn.external.com/logo.png"></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://cdn.external.com/logo.png', status=200)
     cfg = _cfg_with(asset_urls=('https://example.com/static',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert not results.misplaced_assets
 
 
@@ -505,7 +539,7 @@ def test_misplaced_asset_external_excluded() -> None:
 def test_misplaced_asset_ignored_excluded() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><img src="/legacy/logo.png"></body></html>',
         status=200,
     )
@@ -513,7 +547,7 @@ def test_misplaced_asset_ignored_excluded() -> None:
         asset_urls=('https://example.com/static',),
         ignore_urls=('https://example.com/legacy',),
     )
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert not results.misplaced_assets
 
 
@@ -526,13 +560,13 @@ def test_misplaced_asset_ignored_excluded() -> None:
 def test_subdomain_treated_as_external() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://sub.example.com/page">sub</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://sub.example.com/page', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.external_checked == 1
 
 
@@ -545,13 +579,13 @@ def test_subdomain_treated_as_external() -> None:
 def test_path_above_root_not_crawled() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://example.com/other">other</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/other', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.external_checked == 1
 
 
@@ -564,7 +598,7 @@ def test_path_above_root_not_crawled() -> None:
 def test_base_href_resolution() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><head><base href="https://example.com/docs/sub/"></head>'
             '<body><a href="page.html">p</a></body></html>'
@@ -573,7 +607,7 @@ def test_base_href_resolution() -> None:
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/sub/page.html', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.statistics.total_requests == 2
 
 
@@ -586,7 +620,7 @@ def test_base_href_resolution() -> None:
 def test_ssl_error_warns_per_domain() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://bad-ssl.example.com/p">ssl</a></body></html>',
         status=200,
     )
@@ -596,7 +630,7 @@ def test_ssl_error_warns_per_domain() -> None:
         body=requests.exceptions.SSLError('cert verify failed'),
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert len(results.ssl_warnings) == 1
     assert results.ssl_warnings[0].domain == 'bad-ssl.example.com'
 
@@ -604,13 +638,13 @@ def test_ssl_error_warns_per_domain() -> None:
 @resp_lib.activate
 def test_ssl_error_on_internal_page_warns_and_continues() -> None:
     """SSL error on an internal GET must record a warning and not abort the crawl."""
-    cfg = _cfg(root_url='https://bad-ssl.example.com/docs')
+    cfg = _cfg(root_url='https://bad-ssl.example.com/docs/')
     resp_lib.add(
         resp_lib.GET,
-        'https://bad-ssl.example.com/docs',
+        'https://bad-ssl.example.com/docs/',
         body=requests.exceptions.SSLError('certificate verify failed'),
     )
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     domains = [sw.domain for sw in results.ssl_warnings]
     assert 'bad-ssl.example.com' in domains
     # crawl must not raise — reaching here means it continued cleanly
@@ -625,13 +659,13 @@ def test_ssl_error_on_internal_page_warns_and_continues() -> None:
 def test_unvalidated_anchor_on_no_crawl() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://example.com/archive/doc.html#intro">arch</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/archive/doc.html', status=200)
     cfg = _cfg_with(no_crawl_urls=('https://example.com/archive',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     unval = [ua.target_url for ua in results.unvalidated_anchors]
     assert 'https://example.com/archive/doc.html#intro' in unval
 
@@ -640,13 +674,13 @@ def test_unvalidated_anchor_on_no_crawl() -> None:
 def test_unvalidated_anchor_on_external() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="https://external.com/api.html#auth">ext</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://external.com/api.html', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     unval = [ua.target_url for ua in results.unvalidated_anchors]
     assert 'https://external.com/api.html#auth' in unval
 
@@ -655,13 +689,13 @@ def test_unvalidated_anchor_on_external() -> None:
 def test_unvalidated_anchor_on_depth_limited() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/deep/page.html#note">deep</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://example.com/docs/deep/page.html', status=200)
     cfg = _cfg_with(max_depth=0)
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     unval = [ua.target_url for ua in results.unvalidated_anchors]
     assert 'https://example.com/docs/deep/page.html#note' in unval
 
@@ -673,9 +707,9 @@ def test_unvalidated_anchor_on_depth_limited() -> None:
 
 @resp_lib.activate
 def test_exit_code_0_clean() -> None:
-    resp_lib.add(resp_lib.GET, 'https://example.com/docs', body='<html/>', status=200)
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/', body='<html/>', status=200)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.has_problems() is False
 
 
@@ -683,13 +717,13 @@ def test_exit_code_0_clean() -> None:
 def test_exit_code_1_broken() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/missing.html">m</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/missing.html', status=404)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.has_problems() is True
 
 
@@ -704,7 +738,7 @@ def test_already_visited_broken_link_accumulates_referrers() -> None:
     # Root page links to both page1 and page2, which in turn each link to broken.html.
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/page1.html">p1</a>'
@@ -727,7 +761,7 @@ def test_already_visited_broken_link_accumulates_referrers() -> None:
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/broken.html', status=404)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
 
     broken = results.broken_links
     assert len(broken) == 1
@@ -749,7 +783,7 @@ def test_network_error_on_internal_page_recorded_as_broken_link() -> None:
     """A connection error on an internal GET must record a broken link."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/page.html">p</a></body></html>',
         status=200,
     )
@@ -758,8 +792,8 @@ def test_network_error_on_internal_page_recorded_as_broken_link() -> None:
         'https://example.com/docs/page.html',
         body=requests.exceptions.ConnectionError('connection refused'),
     )
-    cfg = _cfg(root_url='https://example.com/docs')
-    results = Crawler(cfg).crawl()
+    cfg = _cfg(root_url='https://example.com/docs/')
+    results = _crawl(cfg)
     broken_urls = [bl.url for bl in results.broken_links]
     assert 'https://example.com/docs/page.html' in broken_urls
 
@@ -775,13 +809,13 @@ def test_fragment_on_internal_error_page_recorded_as_unvalidated() -> None:
     recorded as unvalidated (not crash)."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body><a href="/docs/bad.html#sec1">link</a></body></html>',
         status=200,
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/bad.html', status=500)
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     unvalidated = [a.target_url for a in results.unvalidated_anchors]
     assert 'https://example.com/docs/bad.html#sec1' in unvalidated
 
@@ -797,12 +831,12 @@ def test_abort_stops_crawl_and_results_accessible() -> None:
     object as crawl() returns."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><body></body></html>',
         status=200,
     )
     cfg = _cfg()
-    crawler = Crawler(cfg)
+    crawler = _make_crawler(cfg)
     # results property is accessible before crawl.
     assert crawler.results is not None
     results = crawler.crawl()
@@ -822,13 +856,13 @@ def test_misplaced_asset_no_extension_not_recorded() -> None:
     """An asset URL with no file extension must not be added to misplaced_assets."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body='<html><head><link rel="stylesheet" href="https://cdn.example.net/style"></head></html>',
         status=200,
     )
     resp_lib.add(resp_lib.HEAD, 'https://cdn.example.net/style', status=200)
     cfg = _cfg_with(asset_urls=('https://example.com/docs/assets',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     assert results.misplaced_assets == []
 
 
@@ -842,7 +876,7 @@ def test_already_visited_ignored_url_accumulates_referrers() -> None:
     """An ignored URL seen from two pages must list both referrers."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/page1.html">p1</a>'
@@ -864,14 +898,14 @@ def test_already_visited_ignored_url_accumulates_referrers() -> None:
         status=200,
     )
     cfg = _cfg_with(ignore_urls=('https://example.com/docs/skip',))
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
     matches = [m for m in results.ignore_matches if m.url == 'https://example.com/docs/skip/x.html']
     assert matches
     assert len(matches[0].referencing_pages) == 2
     """A redirecting URL linked from two pages should list both referrers."""
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com/docs',
+        'https://example.com/docs/',
         body=(
             '<html><body>'
             '<a href="/docs/page1.html">p1</a>'
@@ -905,7 +939,7 @@ def test_already_visited_ignored_url_accumulates_referrers() -> None:
         status=200,
     )
     cfg = _cfg()
-    results = Crawler(cfg).crawl()
+    results = _crawl(cfg)
 
     redirects = results.redirects
     assert len(redirects) == 1

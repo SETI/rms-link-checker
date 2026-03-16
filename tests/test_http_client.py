@@ -15,6 +15,7 @@ def _make_client(timeout: int = 10, retries: int = 3) -> HttpClient:
         timeout=timeout,
         retries=retries,
         user_agent='rms-link-checker/test',
+        sleep=lambda _: None,
     )
 
 
@@ -75,8 +76,7 @@ def test_429_triggers_retry() -> None:
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=429)
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=200)
     client = _make_client(timeout=1, retries=3)
-    with patch('time.sleep'):
-        result = client.request('https://example.com/page', method='GET')
+    result = client.request('https://example.com/page', method='GET')
     assert result.status_code == 200
 
 
@@ -85,8 +85,7 @@ def test_503_triggers_retry() -> None:
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=503)
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=200)
     client = _make_client(timeout=1, retries=3)
-    with patch('time.sleep'):
-        result = client.request('https://example.com/page', method='GET')
+    result = client.request('https://example.com/page', method='GET')
     assert result.status_code == 200
 
 
@@ -103,8 +102,7 @@ def test_404_not_retried() -> None:
     resp_lib.reset()
     resp_lib.add_callback(resp_lib.GET, 'https://example.com/page', callback)
     client = _make_client(timeout=1, retries=3)
-    with patch('time.sleep'):
-        result = client.request('https://example.com/page', method='GET')
+    result = client.request('https://example.com/page', method='GET')
     assert result.status_code == 404
     assert call_count == 1
 
@@ -116,8 +114,7 @@ def test_retries_exhausted_records_error() -> None:
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=503)
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=503)
     client = _make_client(timeout=1, retries=3)
-    with patch('time.sleep'):
-        result = client.request('https://example.com/page', method='GET')
+    result = client.request('https://example.com/page', method='GET')
     assert result.status_code == 503
 
 
@@ -130,8 +127,7 @@ def test_connection_error_triggers_retry() -> None:
     )
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=200)
     client = _make_client(timeout=1, retries=3)
-    with patch('time.sleep'):
-        result = client.request('https://example.com/page', method='GET')
+    result = client.request('https://example.com/page', method='GET')
     assert result.status_code == 200
 
 
@@ -139,10 +135,14 @@ def test_connection_error_triggers_retry() -> None:
 def test_backoff_uses_timeout_value() -> None:
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=503)
     resp_lib.add(resp_lib.GET, 'https://example.com/page', status=200)
-    client = _make_client(timeout=7, retries=3)
     sleep_calls: list[float] = []
-    with patch('time.sleep', side_effect=lambda s: sleep_calls.append(s)):
-        client.request('https://example.com/page', method='GET')
+    client = HttpClient(
+        timeout=7,
+        retries=3,
+        user_agent='rms-link-checker/test',
+        sleep=lambda s: sleep_calls.append(s),
+    )
+    client.request('https://example.com/page', method='GET')
     assert sleep_calls[0] == 7
 
 

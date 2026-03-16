@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 from link_checker.config import CrawlConfig
 from link_checker.url_utils import (
+    add_trailing_slash,
     get_file_extension,
     is_html_extension,
     is_http_url,
@@ -130,6 +131,8 @@ def classify_url(
             return UrlDisposition.IGNORED
 
     canonical, _ = normalize_url(url)
+    if is_same_domain(url, root_url):
+        canonical = add_trailing_slash(canonical)
     if canonical in visited_set:
         return UrlDisposition.ALREADY_VISITED
 

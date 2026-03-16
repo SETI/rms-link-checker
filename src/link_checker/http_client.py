@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-import time
+import time as _time_module
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
@@ -64,6 +65,9 @@ class HttpClient:
         verify: TLS certificate verification.  Pass ``False`` to disable
             (e.g. for internal environments with self-signed certificates),
             or a path to a CA bundle.  Defaults to ``True``.
+        sleep: Callable used to pause between retry attempts.  Defaults to
+            :func:`time.sleep`.  Pass a no-op (e.g. ``lambda _: None``) in
+            tests to avoid real waits.
     """
 
     def __init__(
@@ -73,6 +77,7 @@ class HttpClient:
         retries: int,
         user_agent: str,
         verify: bool | str = True,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         """Initialise the HTTP client.
 
@@ -81,11 +86,14 @@ class HttpClient:
             retries: Max retry attempts for transient errors.
             user_agent: User-Agent string.
             verify: TLS verification flag or CA-bundle path.
+            sleep: Optional callable for inter-retry pauses.  Defaults to
+                :func:`time.sleep`.
         """
         self._timeout = timeout
         self._retries = retries
         self._user_agent = user_agent
         self._verify: bool | str = verify
+        self._sleep: Callable[[float], None] = sleep if sleep is not None else _time_module.sleep
         self._session = self._make_session()
         self._ssl_warned_domains: set[str] = set()
 
@@ -160,7 +168,7 @@ class HttpClient:
                 )
                 if attempt < attempts - 1:
                     logger.warning('Transient error for %s (attempt %d): %s', url, attempt + 1, exc)
-                    time.sleep(self._timeout)
+                    self._sleep(self._timeout)
                     continue
                 return last_result
 
@@ -173,7 +181,7 @@ class HttpClient:
                         url,
                         attempt + 1,
                     )
-                    time.sleep(self._timeout)
+                    self._sleep(self._timeout)
                     continue
             return result
 

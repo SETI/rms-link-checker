@@ -252,7 +252,9 @@ def _section_misplaced_assets(results: CrawlResults, config: CrawlConfig) -> str
         if not entries:
             lines.append('  (none)')
             continue
-        for url, refs in sorted(entries, key=lambda x: x[0].rsplit('/', 1)[-1]):
+        for i, (url, refs) in enumerate(sorted(entries, key=lambda x: x[0].rsplit('/', 1)[-1])):
+            if i > 0:
+                lines.append('')
             filename = url.rsplit('/', 1)[-1]
             lines.append(f'  {filename} ({url})')
             lines.append('    Referenced by:')

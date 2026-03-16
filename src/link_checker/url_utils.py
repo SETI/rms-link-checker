@@ -8,12 +8,51 @@ HTML_EXTENSIONS: frozenset[str] = frozenset(
     {'.htm', '.html', '.shtml', '.php', '.asp', '.jsp', '.cgi'}
 )
 
+# Index filenames that are equivalent to the parent directory URL.
+# e.g. /cassini/index.html → /cassini/
+_INDEX_FILENAMES: frozenset[str] = frozenset(
+    {'index' + ext for ext in HTML_EXTENSIONS}
+)
+
+
+def _strip_index_filename(path: str) -> str:
+    """Strip a conventional directory-index filename from a URL path.
+
+    If the final segment of *path* is a known index filename
+    (``index.html``, ``index.php``, etc.) it is removed so the path
+    ends with ``/``.  All other paths are returned unchanged.
+
+    Args:
+        path: The path component of a URL (no scheme, host, query, or
+            fragment).
+
+    Returns:
+        The path with any trailing index filename removed.
+    """
+    if not path:
+        return path
+    last_segment = path.rsplit('/', 1)[-1]
+    if last_segment.lower() in _INDEX_FILENAMES:
+        return path[: len(path) - len(last_segment)]
+    return path
+
 
 def normalize_url(url: str) -> tuple[str, str | None]:
-    """Normalize a URL by lowercasing the host, stripping fragments,
-    and canonicalizing scheme to https for http/https URLs.
+    """Normalize a URL to its canonical form.
 
-    Query strings are preserved as-is and treated as part of the URL identity.
+    Transformations applied:
+
+    - Scheme is canonicalized to ``https`` for http/https URLs.
+    - Host is lowercased.
+    - Fragment is stripped (returned separately).
+    - Query string is preserved as part of the URL identity.
+    - Directory-index filenames (``index.html``, ``index.php``, etc.)
+      are stripped so ``/cassini/index.html`` → ``/cassini/``.
+
+    Note that bare directory paths without a trailing slash (e.g.
+    ``/cassini``) are left unchanged by this function.  Use
+    :func:`add_trailing_slash` to add the trailing slash when you know
+    the URL refers to a directory (e.g. for internal crawl targets).
 
     Args:
         url: The URL to normalize.
@@ -33,13 +72,71 @@ def normalize_url(url: str) -> tuple[str, str | None]:
         (
             'https',
             parsed.netloc.lower(),
-            parsed.path,
+            _strip_index_filename(parsed.path),
             parsed.params,
             parsed.query,
             '',
         )
     )
     return normalized, fragment
+
+
+def add_trailing_slash(url: str) -> str:
+    """Ensure a URL path that has no file extension ends with ``/``.
+
+    This should be applied to **internal** URLs (same domain as the crawl
+    root) to canonicalize bare directory paths:
+
+    - ``/cassini`` → ``/cassini/``
+    - ``/cassini/`` → ``/cassini/`` (unchanged)
+    - ``/cassini/page.html`` → ``/cassini/page.html`` (has extension, unchanged)
+    - ``/data.csv`` → ``/data.csv`` (has extension, unchanged)
+
+    Apply after :func:`normalize_url` so that index-file stripping has
+    already run (``/cassini/index.html`` → ``/cassini/`` → unchanged here).
+
+    Args:
+        url: An already-normalized http/https URL.
+
+    Returns:
+        The URL with a trailing slash added to any extension-free path.
+    """
+    parsed = urlparse(url)
+    path = parsed.path
+    if not path.endswith('/'):
+        last_segment = path.rsplit('/', 1)[-1]
+        dot_idx = last_segment.rfind('.')
+        if dot_idx <= 0:
+            path = path + '/'
+            url = urlunparse(
+                (parsed.scheme, parsed.netloc, path, parsed.params, parsed.query, '')
+            )
+    return url
+
+
+def normalize_internal_url(url: str) -> tuple[str, str | None]:
+    """Normalize an internal (same-domain) URL to its canonical form.
+
+    Applies all transformations from :func:`normalize_url` and additionally
+    adds a trailing slash to directory-like paths (no file extension):
+
+    - ``/cassini`` → ``/cassini/``
+    - ``/cassini/`` → ``/cassini/`` (unchanged)
+    - ``/cassini/index.html`` → ``/cassini/`` (index stripped + already slash)
+    - ``/cassini/page.html`` → ``/cassini/page.html`` (has extension, unchanged)
+
+    Use this for deduplication and request URLs of internal crawl targets.
+    For external URLs use :func:`normalize_url` alone to avoid altering
+    the request path in ways the server may not expect.
+
+    Args:
+        url: The URL to normalize.
+
+    Returns:
+        A tuple of ``(canonical_url, fragment_or_none)``.
+    """
+    normalized, fragment = normalize_url(url)
+    return add_trailing_slash(normalized), fragment
 
 
 def is_same_domain(url: str, root_url: str) -> bool:

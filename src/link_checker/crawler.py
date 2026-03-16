@@ -6,7 +6,8 @@ import importlib.metadata
 import logging
 import queue
 import threading
-import time
+import time as _time_module
+from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from urllib.parse import urlparse
@@ -23,9 +24,12 @@ from link_checker.http_client import HttpClient, RequestResult
 from link_checker.progress import ProgressReporter
 from link_checker.results import CrawlResults
 from link_checker.url_utils import (
+    add_trailing_slash,
     get_depth,
     get_file_extension,
+    is_html_extension,
     is_http_url,
+    is_same_domain,
     normalize_url,
 )
 
@@ -57,19 +61,30 @@ class Crawler:
     Args:
         config: Crawl configuration.
         progress: Optional progress reporter to update during the crawl.
+        sleep: Callable used for inter-retry pauses inside the HTTP client.
+            Defaults to :func:`time.sleep`.  Pass ``lambda _: None`` in tests
+            to make retries instantaneous.
     """
 
-    def __init__(self, config: CrawlConfig, progress: ProgressReporter | None = None) -> None:
+    def __init__(
+        self,
+        config: CrawlConfig,
+        progress: ProgressReporter | None = None,
+        sleep: Callable[[float], None] | None = None,
+    ) -> None:
         """Initialise the crawler.
 
         Args:
             config: Crawl configuration to use.
             progress: Optional :class:`~link_checker.progress.ProgressReporter` to call
                 during the crawl.
+            sleep: Optional callable for inter-retry pauses.  Defaults to
+                :func:`time.sleep`.
         """
         self._config = config
         self._progress = progress
         self._root_url, _ = normalize_url(config.root_url)
+        self._root_url = add_trailing_slash(self._root_url)
         self._root_path = urlparse(self._root_url).path
 
         try:
@@ -77,10 +92,12 @@ class Crawler:
         except importlib.metadata.PackageNotFoundError:
             version = '0.0.0'
 
+        _sleep = sleep if sleep is not None else _time_module.sleep
         self._http = HttpClient(
             timeout=config.timeout,
             retries=config.retries,
             user_agent=f'rms-link-checker/{version}',
+            sleep=_sleep,
         )
 
         self._results = CrawlResults()
@@ -118,7 +135,7 @@ class Crawler:
         Returns:
             :class:`~link_checker.results.CrawlResults` with all findings.
         """
-        self._start_time = time.time()
+        self._start_time = _time_module.time()
         root_canonical, _ = normalize_url(self._config.root_url)
         logger.debug('Crawl started: root=%s', root_canonical)
         work_queue: queue.Queue[_WorkItem] = queue.Queue()
@@ -144,7 +161,7 @@ class Crawler:
 
                 if not futures_map:
                     # In-flight workers may still enqueue new items; wait briefly.
-                    time.sleep(0.01)
+                    _time_module.sleep(0.01)
                     continue
                 done_set, _ = wait(
                     list(futures_map), timeout=5.0, return_when=FIRST_COMPLETED
@@ -159,7 +176,7 @@ class Crawler:
                         checked=checked,
                         queued=work_queue.qsize(),
                         active_threads=active,
-                        elapsed=time.time() - self._start_time,
+                        elapsed=_time_module.time() - self._start_time,
                     )
 
                 if not done_set:
@@ -175,7 +192,7 @@ class Crawler:
         logger.debug(
             'Crawl finished: %d requests in %.1fs',
             self._request_count,
-            time.time() - self._start_time,
+            _time_module.time() - self._start_time,
         )
         return self._results
 
@@ -254,6 +271,8 @@ class Crawler:
         url_no_frag = raw_url.split('#')[0] if '#' in raw_url else raw_url
 
         canonical, _ = normalize_url(url_no_frag)
+        if is_same_domain(canonical, self._root_url):
+            canonical = add_trailing_slash(canonical)
 
         with self._visited_lock:
             already = canonical in self._visited
@@ -381,16 +400,15 @@ class Crawler:
                 )
             )
 
-            if link.is_asset and is_misplaced_asset(
+            ext = get_file_extension(link_canonical)
+            if ext and not is_html_extension(ext) and is_misplaced_asset(
                 link_canonical,
                 config=self._config,
                 root_url=self._root_url,
                 root_path=self._root_path,
             ):
-                ext = get_file_extension(link_canonical)
-                if ext:
-                    asset_type = classify_asset(ext)
-                    self._results.add_misplaced_asset(link_canonical, asset_type.value, url)
+                asset_type = classify_asset(ext)
+                self._results.add_misplaced_asset(link_canonical, asset_type.value, url)
 
     def _handle_asset(self, url: str, referrer: str) -> None:
         logger.debug('Checking internal asset HEAD %s', url)

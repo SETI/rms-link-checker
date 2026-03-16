@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from link_checker.url_utils import (
+    add_trailing_slash,
     get_depth,
     get_file_extension,
     is_html_extension,
@@ -12,6 +13,7 @@ from link_checker.url_utils import (
     is_same_domain,
     is_under_root,
     matches_prefix,
+    normalize_internal_url,
     normalize_url,
 )
 
@@ -336,6 +338,131 @@ def test_normalize_url_non_http_passthrough() -> None:
     url, frag = normalize_url('mailto:user@example.com')
     assert url == 'mailto:user@example.com'
     assert frag is None
+
+
+# ---------------------------------------------------------------------------
+# normalize_url: index-file stripping (applies to all URLs)
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_url_index_html_stripped() -> None:
+    url, _ = normalize_url('https://example.com/cassini/index.html')
+    assert url == 'https://example.com/cassini/'
+
+
+def test_normalize_url_index_htm_stripped() -> None:
+    url, _ = normalize_url('https://example.com/cassini/index.htm')
+    assert url == 'https://example.com/cassini/'
+
+
+def test_normalize_url_index_php_stripped() -> None:
+    url, _ = normalize_url('https://example.com/section/index.php')
+    assert url == 'https://example.com/section/'
+
+
+def test_normalize_url_no_extension_no_slash_unchanged() -> None:
+    """normalize_url alone does NOT add trailing slashes."""
+    url, _ = normalize_url('https://example.com/cassini')
+    assert url == 'https://example.com/cassini'
+
+
+def test_normalize_url_trailing_slash_unchanged() -> None:
+    url, _ = normalize_url('https://example.com/cassini/')
+    assert url == 'https://example.com/cassini/'
+
+
+def test_normalize_url_html_extension_preserved() -> None:
+    url, _ = normalize_url('https://example.com/about.html')
+    assert url == 'https://example.com/about.html'
+
+
+def test_normalize_url_non_html_extension_preserved() -> None:
+    url, _ = normalize_url('https://example.com/data/report.csv')
+    assert url == 'https://example.com/data/report.csv'
+
+
+def test_normalize_url_index_html_with_fragment() -> None:
+    url, frag = normalize_url('https://example.com/section/index.html#intro')
+    assert url == 'https://example.com/section/'
+    assert frag == 'intro'
+
+
+# ---------------------------------------------------------------------------
+# add_trailing_slash
+# ---------------------------------------------------------------------------
+
+
+def test_add_trailing_slash_no_extension() -> None:
+    assert add_trailing_slash('https://x.com/cassini') == 'https://x.com/cassini/'
+
+
+def test_add_trailing_slash_already_present() -> None:
+    assert add_trailing_slash('https://x.com/cassini/') == 'https://x.com/cassini/'
+
+
+def test_add_trailing_slash_with_extension() -> None:
+    assert add_trailing_slash('https://x.com/page.html') == 'https://x.com/page.html'
+
+
+def test_add_trailing_slash_asset_url_unchanged() -> None:
+    assert add_trailing_slash('https://x.com/data.csv') == 'https://x.com/data.csv'
+
+
+def test_add_trailing_slash_with_query() -> None:
+    assert add_trailing_slash('https://x.com/page?q=1') == 'https://x.com/page/?q=1'
+
+
+# ---------------------------------------------------------------------------
+# normalize_internal_url: all three variants map to the same canonical
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_internal_url_no_extension_gets_trailing_slash() -> None:
+    url, _ = normalize_internal_url('https://example.com/cassini')
+    assert url == 'https://example.com/cassini/'
+
+
+def test_normalize_internal_url_trailing_slash_unchanged() -> None:
+    url, _ = normalize_internal_url('https://example.com/cassini/')
+    assert url == 'https://example.com/cassini/'
+
+
+def test_normalize_internal_url_index_html_stripped() -> None:
+    url, _ = normalize_internal_url('https://example.com/cassini/index.html')
+    assert url == 'https://example.com/cassini/'
+
+
+def test_normalize_internal_url_all_three_variants_equal() -> None:
+    """The three conventional forms of a directory URL must all normalize identically."""
+    a, _ = normalize_internal_url('https://example.com/cassini')
+    b, _ = normalize_internal_url('https://example.com/cassini/')
+    c, _ = normalize_internal_url('https://example.com/cassini/index.html')
+    assert a == b == c == 'https://example.com/cassini/'
+
+
+def test_normalize_internal_url_html_extension_preserved() -> None:
+    """Non-index HTML pages must not have their paths altered."""
+    url, _ = normalize_internal_url('https://example.com/about.html')
+    assert url == 'https://example.com/about.html'
+
+
+def test_normalize_internal_url_non_html_extension_preserved() -> None:
+    """Asset URLs must not have their paths altered."""
+    url, _ = normalize_internal_url('https://example.com/data/report.csv')
+    assert url == 'https://example.com/data/report.csv'
+
+
+def test_normalize_internal_url_root_path_unchanged() -> None:
+    """The root path '/' must not be modified."""
+    url, _ = normalize_internal_url('https://example.com/')
+    assert url == 'https://example.com/'
+
+
+def test_normalize_internal_url_index_html_with_fragment() -> None:
+    """Index stripping must still extract the fragment correctly."""
+    url, frag = normalize_internal_url('https://example.com/section/index.html#intro')
+    assert url == 'https://example.com/section/'
+    assert frag == 'intro'
 
 
 @pytest.mark.parametrize(

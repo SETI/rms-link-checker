@@ -81,34 +81,42 @@ def test_add_redirect_records_info() -> None:
 
 def test_add_broken_anchor_records() -> None:
     r = CrawlResults()
-    r.add_broken_anchor('https://example.com/page#missing', 'https://example.com/src')
+    r.add_broken_anchor(
+        target_url='https://example.com/page#missing', referrer='https://example.com/src'
+    )
     assert len(r.broken_anchors) == 1
     assert r.broken_anchors[0].target_url == 'https://example.com/page#missing'
 
 
 def test_add_unvalidated_anchor_records() -> None:
     r = CrawlResults()
-    r.add_unvalidated_anchor('https://example.com/page#s', 'external', 'https://example.com/src')
+    r.add_unvalidated_anchor(
+        target_url='https://example.com/page#s',
+        reason='external',
+        referrer='https://example.com/src',
+    )
     assert len(r.unvalidated_anchors) == 1
     assert r.unvalidated_anchors[0].reason == 'external'
 
 
 def test_add_non_http_link_records() -> None:
     r = CrawlResults()
-    r.add_non_http_link('mailto:user@example.com', 'mailto', 'https://example.com/')
+    r.add_non_http_link(
+        url='mailto:user@example.com', scheme='mailto', referrer='https://example.com/'
+    )
     assert len(r.non_http_links) == 1
     assert r.non_http_links[0].scheme == 'mailto'
 
 
 def test_add_ignore_match_records() -> None:
     r = CrawlResults()
-    r.add_ignore_match('https://example.com/legacy/old', 'https://example.com/')
+    r.add_ignore_match(url='https://example.com/legacy/old', referrer='https://example.com/')
     assert len(r.ignore_matches) == 1
 
 
 def test_add_no_crawl_match_records() -> None:
     r = CrawlResults()
-    r.add_no_crawl_match('https://example.com/archive/p', 'https://example.com/')
+    r.add_no_crawl_match(url='https://example.com/archive/p', referrer='https://example.com/')
     assert len(r.no_crawl_matches) == 1
 
 
@@ -126,7 +134,9 @@ def test_add_ssl_warning_records() -> None:
 
 def test_add_misplaced_asset_records() -> None:
     r = CrawlResults()
-    r.add_misplaced_asset('https://example.com/docs/img.jpg', 'Image', 'https://example.com/')
+    r.add_misplaced_asset(
+        url='https://example.com/docs/img.jpg', asset_type='Image', referrer='https://example.com/'
+    )
     assert len(r.misplaced_assets) == 1
     assert r.misplaced_assets[0].asset_type == 'Image'
 
@@ -236,8 +246,9 @@ def test_thread_safety_record_request() -> None:
 
 def test_non200_records() -> None:
     r = CrawlResults()
-    r.add_non200('https://example.com/forbidden', 403, 'https://example.com/')
-    assert len(r.non200_responses) == 1
+    r.add_non200(
+        url='https://example.com/forbidden', status_code=403, referrer='https://example.com/'
+    )
     assert r.non200_responses[0].status_code == 403
 
 
@@ -309,8 +320,12 @@ def test_accessors_return_snapshots_not_live_objects() -> None:
         status_code=301,
         referrer='https://example.com/ref1',
     )
-    r.add_broken_anchor('https://example.com/page#missing', 'https://example.com/ref1')
-    r.add_non200('https://example.com/gone', 404, 'https://example.com/ref1')
+    r.add_broken_anchor(
+        target_url='https://example.com/page#missing', referrer='https://example.com/ref1'
+    )
+    r.add_non200(
+        url='https://example.com/gone', status_code=404, referrer='https://example.com/ref1'
+    )
     r.add_ssl_warning(
         url='https://bad.example.com/x',
         domain='bad.example.com',
@@ -405,7 +420,7 @@ def test_pending_referrer_drained_into_redirect() -> None:
 def test_pending_referrer_drained_into_non200() -> None:
     r = CrawlResults()
     r.merge_referrer('https://example.com/gone', 'pending-ref')
-    r.add_non200('https://example.com/gone', 404, 'direct-ref')
+    r.add_non200(url='https://example.com/gone', status_code=404, referrer='direct-ref')
     entry = r.non200_responses[0]
     assert 'pending-ref' in entry.referencing_pages
 
@@ -413,7 +428,9 @@ def test_pending_referrer_drained_into_non200() -> None:
 def test_pending_referrer_drained_into_misplaced_asset() -> None:
     r = CrawlResults()
     r.merge_referrer('https://example.com/img.png', 'pending-ref')
-    r.add_misplaced_asset('https://example.com/img.png', 'Image', 'direct-ref')
+    r.add_misplaced_asset(
+        url='https://example.com/img.png', asset_type='Image', referrer='direct-ref'
+    )
     entry = r.misplaced_assets[0]
     assert 'pending-ref' in entry.referencing_pages
 
@@ -421,7 +438,7 @@ def test_pending_referrer_drained_into_misplaced_asset() -> None:
 def test_pending_referrer_drained_into_non_http_link() -> None:
     r = CrawlResults()
     r.merge_referrer('mailto:info@example.com', 'pending-ref')
-    r.add_non_http_link('mailto:info@example.com', 'mailto', 'direct-ref')
+    r.add_non_http_link(url='mailto:info@example.com', scheme='mailto', referrer='direct-ref')
     entry = r.non_http_links[0]
     assert 'pending-ref' in entry.referencing_pages
 
@@ -429,7 +446,7 @@ def test_pending_referrer_drained_into_non_http_link() -> None:
 def test_pending_referrer_drained_into_ignore_match() -> None:
     r = CrawlResults()
     r.merge_referrer('https://example.com/ignored', 'pending-ref')
-    r.add_ignore_match('https://example.com/ignored', 'direct-ref')
+    r.add_ignore_match(url='https://example.com/ignored', referrer='direct-ref')
     entry = r.ignore_matches[0]
     assert 'pending-ref' in entry.referencing_pages
 
@@ -437,7 +454,7 @@ def test_pending_referrer_drained_into_ignore_match() -> None:
 def test_pending_referrer_drained_into_no_crawl_match() -> None:
     r = CrawlResults()
     r.merge_referrer('https://example.com/archive', 'pending-ref')
-    r.add_no_crawl_match('https://example.com/archive', 'direct-ref')
+    r.add_no_crawl_match(url='https://example.com/archive', referrer='direct-ref')
     entry = r.no_crawl_matches[0]
     assert 'pending-ref' in entry.referencing_pages
 

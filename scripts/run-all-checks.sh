@@ -192,6 +192,13 @@ if [ "$SCOPE_SPECIFIED" = false ]; then
     RUN_MARKDOWN=true
 fi
 
+# Validate PYTEST_WORKERS: must be 'auto' or a positive integer
+if ! echo "$PYTEST_WORKERS" | grep -qE '^(auto|[1-9][0-9]*)$'; then
+    echo -e "${RED}Error: --pytest-workers value must be 'auto' or a positive integer (got: '$PYTEST_WORKERS')${RESET}" >&2
+    show_usage
+    exit 1
+fi
+
 START_TIME=$(date +%s)
 
 print_header "rms-link-checker - Running All Checks"
@@ -413,23 +420,29 @@ if [ "$PARALLEL" = true ]; then
         [ -f "$log_file" ] && cat "$log_file"
     done
 else
-    # Sequential
+    # Sequential — pass a status file so FAILED_CHECKS is populated
     if [ "$RUN_CODE" = true ]; then
-        if ! run_code_checks; then
+        code_status="$TEMP_DIR/code.status"
+        if ! run_code_checks "" "$code_status"; then
             EXIT_CODE=1
         fi
+        _collect_status "$code_status"
     fi
 
     if [ "$RUN_SPHINX" = true ]; then
-        if ! run_sphinx_build; then
+        sphinx_status="$TEMP_DIR/sphinx.status"
+        if ! run_sphinx_build "" "$sphinx_status"; then
             EXIT_CODE=1
         fi
+        _collect_status "$sphinx_status"
     fi
 
     if [ "$RUN_MARKDOWN" = true ]; then
-        if ! run_markdown_checks; then
+        markdown_status="$TEMP_DIR/markdown.status"
+        if ! run_markdown_checks "" "$markdown_status"; then
             EXIT_CODE=1
         fi
+        _collect_status "$markdown_status"
     fi
 fi
 

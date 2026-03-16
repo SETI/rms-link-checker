@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
 from dataclasses import replace
 
 import requests.exceptions
@@ -17,9 +16,6 @@ from link_checker.results import CrawlResults
 # Disable inter-retry sleeps for all crawler tests so they run fast.
 def _no_sleep(_: float) -> None:
     pass
-
-
-_NO_SLEEP: Callable[[float], None] = _no_sleep
 
 
 def _cfg(**kwargs: object) -> CrawlConfig:
@@ -48,12 +44,12 @@ def _cfg_with(**kwargs: object) -> CrawlConfig:
 
 def _crawl(cfg: CrawlConfig) -> CrawlResults:
     """Run a crawl with sleep disabled so tests never wait on retries."""
-    return Crawler(cfg, sleep=_NO_SLEEP).crawl()
+    return Crawler(cfg, sleep=_no_sleep).crawl()
 
 
 def _make_crawler(cfg: CrawlConfig) -> Crawler:
     """Construct a Crawler with sleep disabled."""
-    return Crawler(cfg, sleep=_NO_SLEEP)
+    return Crawler(cfg, sleep=_no_sleep)
 
 
 # ---------------------------------------------------------------------------

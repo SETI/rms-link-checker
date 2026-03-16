@@ -24,20 +24,30 @@ def test_progress_emits_to_stderr(capfd: pytest.CaptureFixture[str]) -> None:
         reporter.stop()
 
 
-def test_progress_format(capfd: pytest.CaptureFixture[str]) -> None:
+@pytest.mark.parametrize(
+    ('checked', 'queued', 'active_threads', 'elapsed', 'expected_fragments'),
+    [
+        # Basic formatting: elapsed under 60 s, minute portion is '0m'.
+        (10, 5, 2, 30.0, ['10/~15', 'URLs/s', '5 in queue', '2 threads active', '0m 30s elapsed']),
+        # Minute-boundary: 90.5 s formats as '1m 30s'.
+        (42, 7, 3, 90.5, ['42/~49', '7 in queue', '3 threads active', '1m 30s elapsed']),
+    ],
+)
+def test_progress_format(
+    capfd: pytest.CaptureFixture[str],
+    checked: int,
+    queued: int,
+    active_threads: int,
+    elapsed: float,
+    expected_fragments: list[str],
+) -> None:
+    """Progress line must contain the correct formatted fields for given inputs."""
     reporter = ProgressReporter(interval=0.05)
-    reporter.update(checked=10, queued=5, active_threads=2, elapsed=30.0)
+    reporter.update(checked=checked, queued=queued, active_threads=active_threads, elapsed=elapsed)
     reporter._emit()
     captured = capfd.readouterr()
-    assert '[Progress]' in captured.err
-    assert '10/~15' in captured.err
-    assert 'URLs/s' in captured.err
-    assert '5 in queue' in captured.err
-    assert '2 threads active' in captured.err
-    assert '0m 30s elapsed' in captured.err
-
-
-def test_progress_stop_no_more_output(capfd: pytest.CaptureFixture[str]) -> None:
+    for fragment in expected_fragments:
+        assert fragment in captured.err
     reporter = ProgressReporter(interval=0.05)
     reporter.start()
     reporter.stop()
@@ -46,14 +56,3 @@ def test_progress_stop_no_more_output(capfd: pytest.CaptureFixture[str]) -> None
     time.sleep(0.15)
     captured2 = capfd.readouterr()
     assert captured2.err.count('[Progress]') == 0
-
-
-def test_progress_update_values(capfd: pytest.CaptureFixture[str]) -> None:
-    reporter = ProgressReporter(interval=60.0)
-    reporter.update(checked=42, queued=7, active_threads=3, elapsed=90.5)
-    reporter._emit()
-    captured = capfd.readouterr()
-    assert '42/~49' in captured.err
-    assert '7 in queue' in captured.err
-    assert '3 threads active' in captured.err
-    assert '1m 30s elapsed' in captured.err

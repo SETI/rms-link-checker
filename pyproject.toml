@@ -46,6 +46,7 @@ Issues = "https://github.com/SETI/rms-link-checker/issues"
 pythonpath = [
   "src"
 ]
+addopts = ["-n", "auto", "--cov=src"]
 
 [tool.setuptools]
 [tool.setuptools.packages.find]
@@ -62,17 +63,14 @@ write_to = "src/link_checker/_version.py"
 dev = [
   "coverage>=7.0",
   "mypy>=1.0",
-  "myst-parser",
   "pymarkdownlnt>=0.9.35",
   "pytest>=7.0",
   "pytest-cov>=4.0",
   "pytest-profiling>=1.8.1",
   "pytest-xdist>=3.8.0",
   "responses>=0.23.0",
+  "rms-link-checker[docs]",
   "ruff>=0.8",
-  "sphinx>=7",
-  "sphinxcontrib-mermaid",
-  "sphinx-rtd-theme",
   "types-requests>=2.28.0",
   "types-beautifulsoup4>=4.12.0",
   "types-PyYAML>=6.0",

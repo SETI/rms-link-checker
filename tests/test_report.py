@@ -150,14 +150,18 @@ def test_report_broken_links_zero() -> None:
 
 def test_report_broken_anchors_header_count() -> None:
     r = CrawlResults()
-    r.add_broken_anchor('https://example.com/page#missing', 'https://example.com/')
+    r.add_broken_anchor(
+        target_url='https://example.com/page#missing', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert '=== Broken Anchors (1) ===' in report
 
 
 def test_report_broken_anchors_shows_target() -> None:
     r = CrawlResults()
-    r.add_broken_anchor('https://example.com/page#missing', 'https://example.com/')
+    r.add_broken_anchor(
+        target_url='https://example.com/page#missing', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert 'Target: https://example.com/page#missing' in report
 
@@ -169,14 +173,18 @@ def test_report_broken_anchors_shows_target() -> None:
 
 def test_report_non200_header() -> None:
     r = CrawlResults()
-    r.add_non200('https://example.com/forbidden', 403, 'https://example.com/')
+    r.add_non200(
+        url='https://example.com/forbidden', status_code=403, referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert '=== Non-200 Responses (1) ===' in report
 
 
 def test_report_non200_grouped_by_status() -> None:
     r = CrawlResults()
-    r.add_non200('https://example.com/forbidden', 403, 'https://example.com/')
+    r.add_non200(
+        url='https://example.com/forbidden', status_code=403, referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert '403 Forbidden:' in report
 
@@ -217,21 +225,27 @@ def test_report_redirects_shows_chain() -> None:
 
 def test_report_misplaced_assets_header_count() -> None:
     r = CrawlResults()
-    r.add_misplaced_asset('https://example.com/docs/img.jpg', 'Image', 'https://example.com/')
+    r.add_misplaced_asset(
+        url='https://example.com/docs/img.jpg', asset_type='Image', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert '=== Misplaced Assets (1) ===' in report
 
 
 def test_report_misplaced_assets_grouped_by_type() -> None:
     r = CrawlResults()
-    r.add_misplaced_asset('https://example.com/docs/img.jpg', 'Image', 'https://example.com/')
+    r.add_misplaced_asset(
+        url='https://example.com/docs/img.jpg', asset_type='Image', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert 'Image:' in report
 
 
 def test_report_misplaced_assets_none_for_empty_type() -> None:
     r = CrawlResults()
-    r.add_misplaced_asset('https://example.com/docs/img.jpg', 'Image', 'https://example.com/')
+    r.add_misplaced_asset(
+        url='https://example.com/docs/img.jpg', asset_type='Image', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert 'Document:\n  (none)' in report
 
@@ -243,7 +257,7 @@ def test_report_misplaced_assets_none_for_empty_type() -> None:
 
 def test_report_ignore_matches_header() -> None:
     r = CrawlResults()
-    r.add_ignore_match('https://example.com/legacy/old', 'https://example.com/')
+    r.add_ignore_match(url='https://example.com/legacy/old', referrer='https://example.com/')
     report = generate_report(r, _cfg())
     assert '=== Ignore URL Matches (1) ===' in report
 
@@ -255,14 +269,18 @@ def test_report_ignore_matches_header() -> None:
 
 def test_report_non_http_links_header() -> None:
     r = CrawlResults()
-    r.add_non_http_link('mailto:user@example.com', 'mailto', 'https://example.com/')
+    r.add_non_http_link(
+        url='mailto:user@example.com', scheme='mailto', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert '=== Non-HTTP Scheme Links (1) ===' in report
 
 
 def test_report_non_http_links_shows_url() -> None:
     r = CrawlResults()
-    r.add_non_http_link('mailto:user@example.com', 'mailto', 'https://example.com/')
+    r.add_non_http_link(
+        url='mailto:user@example.com', scheme='mailto', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert 'mailto:user@example.com' in report
 
@@ -329,14 +347,18 @@ def test_report_ssl_warnings_plural_domains() -> None:
 
 def test_report_unvalidated_anchors_header() -> None:
     r = CrawlResults()
-    r.add_unvalidated_anchor('https://example.com/page#s', 'external', 'https://example.com/')
+    r.add_unvalidated_anchor(
+        target_url='https://example.com/page#s', reason='external', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert '=== Unvalidated Anchors (1) ===' in report
 
 
 def test_report_unvalidated_anchors_shows_reason() -> None:
     r = CrawlResults()
-    r.add_unvalidated_anchor('https://example.com/page#s', 'no-crawl', 'https://example.com/')
+    r.add_unvalidated_anchor(
+        target_url='https://example.com/page#s', reason='no-crawl', referrer='https://example.com/'
+    )
     report = generate_report(r, _cfg())
     assert 'https://example.com/page#s (no-crawl)' in report
 
@@ -349,7 +371,10 @@ def test_report_unvalidated_anchors_shows_reason() -> None:
 def test_report_referencing_page_truncation() -> None:
     r = CrawlResults()
     for i in range(15):
-        r.add_broken_anchor('https://example.com/page#missing', f'https://example.com/page{i}')
+        r.add_broken_anchor(
+            target_url='https://example.com/page#missing',
+            referrer=f'https://example.com/page{i}',
+        )
     report = generate_report(r, _cfg(max_referencing_pages=10))
     assert '... and 5 more referencing pages' in report
 
@@ -357,7 +382,10 @@ def test_report_referencing_page_truncation() -> None:
 def test_report_no_truncation_when_under_limit() -> None:
     r = CrawlResults()
     for i in range(5):
-        r.add_broken_anchor('https://example.com/page#missing', f'https://example.com/page{i}')
+        r.add_broken_anchor(
+            target_url='https://example.com/page#missing',
+            referrer=f'https://example.com/page{i}',
+        )
     report = generate_report(r, _cfg(max_referencing_pages=10))
     assert 'more referencing pages' not in report
 
@@ -425,8 +453,8 @@ def test_report_config_summary_ignore_urls() -> None:
 def test_broken_links_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
-    r.add_broken_anchor('https://example.com/page#missing', 'ref1')
-    r.add_broken_anchor('https://example.com/page#missing', 'ref2')
+    r.add_broken_anchor(target_url='https://example.com/page#missing', referrer='ref1')
+    r.add_broken_anchor(target_url='https://example.com/page#missing', referrer='ref2')
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report
 
@@ -434,8 +462,8 @@ def test_broken_links_truncation_more_line() -> None:
 def test_non200_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
-    r.add_non200('https://example.com/gone', 404, 'ref1')
-    r.add_non200('https://example.com/gone', 404, 'ref2')
+    r.add_non200(url='https://example.com/gone', status_code=404, referrer='ref1')
+    r.add_non200(url='https://example.com/gone', status_code=404, referrer='ref2')
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report
 
@@ -462,8 +490,8 @@ def test_redirects_truncation_more_line() -> None:
 def test_ignore_matches_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
-    r.add_ignore_match('https://example.com/skip', 'ref1')
-    r.add_ignore_match('https://example.com/skip', 'ref2')
+    r.add_ignore_match(url='https://example.com/skip', referrer='ref1')
+    r.add_ignore_match(url='https://example.com/skip', referrer='ref2')
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report
 
@@ -471,8 +499,8 @@ def test_ignore_matches_truncation_more_line() -> None:
 def test_non_http_links_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
-    r.add_non_http_link('mailto:a@example.com', 'mailto', 'ref1')
-    r.add_non_http_link('mailto:a@example.com', 'mailto', 'ref2')
+    r.add_non_http_link(url='mailto:a@example.com', scheme='mailto', referrer='ref1')
+    r.add_non_http_link(url='mailto:a@example.com', scheme='mailto', referrer='ref2')
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report
 
@@ -481,10 +509,16 @@ def test_ssl_warnings_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
     r.add_ssl_warning(
-        url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref1'
+        url='https://bad.example.com/x',
+        domain='bad.example.com',
+        error='err',
+        referrer='ref1',
     )
     r.add_ssl_warning(
-        url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref2'
+        url='https://bad.example.com/x',
+        domain='bad.example.com',
+        error='err',
+        referrer='ref2',
     )
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report

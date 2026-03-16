@@ -10,6 +10,7 @@ import time as _time_module
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
+from http import HTTPStatus
 from urllib.parse import urlparse
 
 from link_checker.classifier import (
@@ -313,12 +314,12 @@ class Crawler:
         if disposition == UrlDisposition.NON_HTTP:
             scheme = urlparse(raw_url).scheme
             logger.debug('Non-HTTP link %s (scheme: %s)', raw_url, scheme)
-            self._results.add_non_http_link(raw_url, scheme, referrer)
+            self._results.add_non_http_link(url=raw_url, scheme=scheme, referrer=referrer)
             return
 
         if disposition == UrlDisposition.IGNORED:
             logger.debug('Ignored %s', url_no_frag)
-            self._results.add_ignore_match(url_no_frag, referrer)
+            self._results.add_ignore_match(url=url_no_frag, referrer=referrer)
             return
 
         if not self._mark_visited(canonical):
@@ -351,10 +352,12 @@ class Crawler:
             result = self._http.request(canonical, method='HEAD')
             self._record_result(result, canonical, referrer, is_external=False)
             self._results.record_request(canonical)
-            self._results.add_no_crawl_match(canonical, referrer)
+            self._results.add_no_crawl_match(url=canonical, referrer=referrer)
             if fragment:
                 self._results.add_unvalidated_anchor(
-                    canonical + '#' + fragment, 'no-crawl', referrer
+                    target_url=canonical + '#' + fragment,
+                    reason='no-crawl',
+                    referrer=referrer,
                 )
         elif disposition in (UrlDisposition.EXTERNAL, UrlDisposition.DEPTH_LIMITED):
             reason = 'external' if disposition == UrlDisposition.EXTERNAL else 'depth-limited'
@@ -363,7 +366,11 @@ class Crawler:
             self._record_result(result, canonical, referrer, is_external=True)
             self._results.record_request(canonical, external=True)
             if fragment:
-                self._results.add_unvalidated_anchor(canonical + '#' + fragment, reason, referrer)
+                self._results.add_unvalidated_anchor(
+                    target_url=canonical + '#' + fragment,
+                    reason=reason,
+                    referrer=referrer,
+                )
 
     def _handle_internal_crawl(
         self,
@@ -398,7 +405,11 @@ class Crawler:
 
         if result.error or result.status_code not in range(200, 300) or result.body is None:
             if fragment:
-                self._results.add_unvalidated_anchor(url + '#' + fragment, 'error', referrer)
+                self._results.add_unvalidated_anchor(
+                    target_url=url + '#' + fragment,
+                    reason='error',
+                    referrer=referrer,
+                )
             return
 
         anchors = extract_anchors(result.body)
@@ -421,7 +432,7 @@ class Crawler:
             link_url = link.url
             if not is_http_url(link_url):
                 scheme = urlparse(link_url).scheme
-                self._results.add_non_http_link(link_url, scheme, url)
+                self._results.add_non_http_link(url=link_url, scheme=scheme, referrer=url)
                 continue
 
             link_no_frag = link_url.split('#')[0] if '#' in link_url else link_url
@@ -448,7 +459,9 @@ class Crawler:
                 )
             ):
                 asset_type = classify_asset(ext)
-                self._results.add_misplaced_asset(link_canonical, asset_type.value, url)
+                self._results.add_misplaced_asset(
+                    url=link_canonical, asset_type=asset_type.value, referrer=url
+                )
 
     def _handle_asset(self, url: str, referrer: str) -> None:
         """Issue a HEAD request for an internal asset and record the result.
@@ -525,15 +538,20 @@ class Crawler:
                 )
         elif result.status_code >= 400:
             logger.debug('Broken link %s status=%d', url, result.status_code)
+            try:
+                reason = HTTPStatus(result.status_code).phrase
+            except ValueError:
+                reason = ''
+            error = f'{result.status_code} {reason}' if reason else f'{result.status_code}'
             self._results.add_broken_link(
                 url=url,
                 status_code=result.status_code,
-                error=f'{result.status_code}',
+                error=error,
                 referrer=referrer,
             )
 
         if result.status_code != 200 and result.status_code != 0:
-            self._results.add_non200(url, result.status_code, referrer)
+            self._results.add_non200(url=url, status_code=result.status_code, referrer=referrer)
 
     def _validate_anchor(
         self,
@@ -560,7 +578,7 @@ class Crawler:
         if anchors is not None:
             if fragment not in anchors:
                 logger.debug('Broken anchor #%s on %s', fragment, page_url)
-                self._results.add_broken_anchor(full_url, referrer)
+                self._results.add_broken_anchor(target_url=full_url, referrer=referrer)
             else:
                 logger.debug('Anchor #%s on %s OK', fragment, page_url)
         else:

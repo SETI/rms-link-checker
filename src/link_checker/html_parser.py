@@ -104,7 +104,7 @@ def extract_links(
 
 
 def extract_anchors(html: str) -> frozenset[str]:
-    """Extract all anchor IDs from *html* (``id`` attributes and ``<a name>``)
+    """Extract all anchor IDs from *html* (``id`` attributes and ``<a name>``).
 
     Parameters:
         html: Raw HTML string.

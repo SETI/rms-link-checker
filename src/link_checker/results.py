@@ -218,6 +218,18 @@ class CrawlResults:
         """
         return self._pending_referrers.pop(url, [])
 
+    def _append_referrer(self, referencing_pages: list[str], referrer: str) -> None:
+        """Append *referrer* to *referencing_pages* unless it is empty or a duplicate.
+
+        Must be called inside ``self._lock``.
+
+        Parameters:
+            referencing_pages: The list to append to.
+            referrer: The referrer string to add.
+        """
+        if referrer != '' and referrer not in referencing_pages:
+            referencing_pages.append(referrer)
+
     def merge_referrer(self, url: str, referrer: str) -> None:
         """Add *referrer* to every existing result entry that tracks *url*.
 
@@ -282,10 +294,8 @@ class CrawlResults:
             if url not in self._broken_links:
                 self._broken_links[url] = BrokenLink(url=url, status_code=status_code, error=error)
                 for pending in self._drain_pending(url):
-                    if pending not in self._broken_links[url].referencing_pages:
-                        self._broken_links[url].referencing_pages.append(pending)
-            if referrer not in self._broken_links[url].referencing_pages:
-                self._broken_links[url].referencing_pages.append(referrer)
+                    self._append_referrer(self._broken_links[url].referencing_pages, pending)
+            self._append_referrer(self._broken_links[url].referencing_pages, referrer)
 
     @property
     def broken_links(self) -> list[BrokenLink]:
@@ -327,10 +337,8 @@ class CrawlResults:
                     status_code=status_code,
                 )
                 for pending in self._drain_pending(original_url):
-                    if pending not in self._redirects[original_url].referencing_pages:
-                        self._redirects[original_url].referencing_pages.append(pending)
-            if referrer not in self._redirects[original_url].referencing_pages:
-                self._redirects[original_url].referencing_pages.append(referrer)
+                    self._append_referrer(self._redirects[original_url].referencing_pages, pending)
+            self._append_referrer(self._redirects[original_url].referencing_pages, referrer)
 
     @property
     def redirects(self) -> list[RedirectInfo]:
@@ -348,7 +356,7 @@ class CrawlResults:
     # Broken anchors
     # ------------------------------------------------------------------
 
-    def add_broken_anchor(self, target_url: str, referrer: str) -> None:
+    def add_broken_anchor(self, *, target_url: str, referrer: str) -> None:
         """Record a broken anchor (fragment not found in target page).
 
         Parameters:
@@ -358,8 +366,7 @@ class CrawlResults:
         with self._lock:
             if target_url not in self._broken_anchors:
                 self._broken_anchors[target_url] = BrokenAnchor(target_url=target_url)
-            if referrer not in self._broken_anchors[target_url].referencing_pages:
-                self._broken_anchors[target_url].referencing_pages.append(referrer)
+            self._append_referrer(self._broken_anchors[target_url].referencing_pages, referrer)
 
     @property
     def broken_anchors(self) -> list[BrokenAnchor]:
@@ -377,7 +384,7 @@ class CrawlResults:
     # Unvalidated anchors
     # ------------------------------------------------------------------
 
-    def add_unvalidated_anchor(self, target_url: str, reason: str, referrer: str) -> None:
+    def add_unvalidated_anchor(self, *, target_url: str, reason: str, referrer: str) -> None:
         """Record an anchor that could not be validated.
 
         Parameters:
@@ -391,8 +398,7 @@ class CrawlResults:
                 self._unvalidated_anchors[target_url] = UnvalidatedAnchor(
                     target_url=target_url, reason=reason
                 )
-            if referrer not in self._unvalidated_anchors[target_url].referencing_pages:
-                self._unvalidated_anchors[target_url].referencing_pages.append(referrer)
+            self._append_referrer(self._unvalidated_anchors[target_url].referencing_pages, referrer)
 
     @property
     def unvalidated_anchors(self) -> list[UnvalidatedAnchor]:
@@ -410,7 +416,7 @@ class CrawlResults:
     # Non-200 responses
     # ------------------------------------------------------------------
 
-    def add_non200(self, url: str, status_code: int, referrer: str) -> None:
+    def add_non200(self, *, url: str, status_code: int, referrer: str) -> None:
         """Record a URL that returned a non-200 final status.
 
         Parameters:
@@ -422,10 +428,8 @@ class CrawlResults:
             if url not in self._non200:
                 self._non200[url] = Non200Response(url=url, status_code=status_code)
                 for pending in self._drain_pending(url):
-                    if pending not in self._non200[url].referencing_pages:
-                        self._non200[url].referencing_pages.append(pending)
-            if referrer not in self._non200[url].referencing_pages:
-                self._non200[url].referencing_pages.append(referrer)
+                    self._append_referrer(self._non200[url].referencing_pages, pending)
+            self._append_referrer(self._non200[url].referencing_pages, referrer)
 
     @property
     def non200_responses(self) -> list[Non200Response]:
@@ -443,7 +447,7 @@ class CrawlResults:
     # Misplaced assets
     # ------------------------------------------------------------------
 
-    def add_misplaced_asset(self, url: str, asset_type: str, referrer: str) -> None:
+    def add_misplaced_asset(self, *, url: str, asset_type: str, referrer: str) -> None:
         """Record a misplaced asset.
 
         Parameters:
@@ -455,10 +459,8 @@ class CrawlResults:
             if url not in self._misplaced_assets:
                 self._misplaced_assets[url] = MisplacedAsset(url=url, asset_type=asset_type)
                 for pending in self._drain_pending(url):
-                    if pending not in self._misplaced_assets[url].referencing_pages:
-                        self._misplaced_assets[url].referencing_pages.append(pending)
-            if referrer not in self._misplaced_assets[url].referencing_pages:
-                self._misplaced_assets[url].referencing_pages.append(referrer)
+                    self._append_referrer(self._misplaced_assets[url].referencing_pages, pending)
+            self._append_referrer(self._misplaced_assets[url].referencing_pages, referrer)
 
     @property
     def misplaced_assets(self) -> list[MisplacedAsset]:
@@ -494,13 +496,11 @@ class CrawlResults:
                 pending = self._drain_pending(url)
                 refs: list[str] = []
                 for p in pending:
-                    if p not in refs:
-                        refs.append(p)
-                if referrer not in refs:
-                    refs.append(referrer)
+                    self._append_referrer(refs, p)
+                self._append_referrer(refs, referrer)
                 sw.affected_urls.append((url, refs))
-            elif referrer not in existing[1]:
-                existing[1].append(referrer)
+            else:
+                self._append_referrer(existing[1], referrer)
 
     @property
     def ssl_warnings(self) -> list[SslWarning]:
@@ -521,7 +521,7 @@ class CrawlResults:
     # Non-HTTP links
     # ------------------------------------------------------------------
 
-    def add_non_http_link(self, url: str, scheme: str, referrer: str) -> None:
+    def add_non_http_link(self, *, url: str, scheme: str, referrer: str) -> None:
         """Record a non-HTTP scheme link.
 
         Parameters:
@@ -533,10 +533,8 @@ class CrawlResults:
             if url not in self._non_http_links:
                 self._non_http_links[url] = NonHttpLink(url=url, scheme=scheme)
                 for pending in self._drain_pending(url):
-                    if pending not in self._non_http_links[url].referencing_pages:
-                        self._non_http_links[url].referencing_pages.append(pending)
-            if referrer not in self._non_http_links[url].referencing_pages:
-                self._non_http_links[url].referencing_pages.append(referrer)
+                    self._append_referrer(self._non_http_links[url].referencing_pages, pending)
+            self._append_referrer(self._non_http_links[url].referencing_pages, referrer)
 
     @property
     def non_http_links(self) -> list[NonHttpLink]:
@@ -554,7 +552,7 @@ class CrawlResults:
     # Ignore matches
     # ------------------------------------------------------------------
 
-    def add_ignore_match(self, url: str, referrer: str) -> None:
+    def add_ignore_match(self, *, url: str, referrer: str) -> None:
         """Record a URL that was ignored.
 
         Parameters:
@@ -565,10 +563,8 @@ class CrawlResults:
             if url not in self._ignore_matches:
                 self._ignore_matches[url] = IgnoreMatch(url=url)
                 for pending in self._drain_pending(url):
-                    if pending not in self._ignore_matches[url].referencing_pages:
-                        self._ignore_matches[url].referencing_pages.append(pending)
-            if referrer not in self._ignore_matches[url].referencing_pages:
-                self._ignore_matches[url].referencing_pages.append(referrer)
+                    self._append_referrer(self._ignore_matches[url].referencing_pages, pending)
+            self._append_referrer(self._ignore_matches[url].referencing_pages, referrer)
 
     @property
     def ignore_matches(self) -> list[IgnoreMatch]:
@@ -586,7 +582,7 @@ class CrawlResults:
     # No-crawl matches
     # ------------------------------------------------------------------
 
-    def add_no_crawl_match(self, url: str, referrer: str) -> None:
+    def add_no_crawl_match(self, *, url: str, referrer: str) -> None:
         """Record a URL that matched a no-crawl prefix.
 
         Parameters:
@@ -597,10 +593,8 @@ class CrawlResults:
             if url not in self._no_crawl_matches:
                 self._no_crawl_matches[url] = NoCrawlMatch(url=url)
                 for pending in self._drain_pending(url):
-                    if pending not in self._no_crawl_matches[url].referencing_pages:
-                        self._no_crawl_matches[url].referencing_pages.append(pending)
-            if referrer not in self._no_crawl_matches[url].referencing_pages:
-                self._no_crawl_matches[url].referencing_pages.append(referrer)
+                    self._append_referrer(self._no_crawl_matches[url].referencing_pages, pending)
+            self._append_referrer(self._no_crawl_matches[url].referencing_pages, referrer)
 
     @property
     def no_crawl_matches(self) -> list[NoCrawlMatch]:

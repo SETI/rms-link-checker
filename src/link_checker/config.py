@@ -100,7 +100,7 @@ def load_config(
         return yaml_data.get(key, default)
 
     root_url: str | None = _resolve('root_url')
-    if root_url is None or root_url == '':
+    if root_url is None or root_url.strip() == '':
         raise ValueError(
             'root_url is required: provide it as a positional argument or in the config file.'
         )

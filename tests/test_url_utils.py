@@ -51,10 +51,11 @@ def test_normalize_url_lowercases_host() -> None:
     assert url == 'https://x.com/Path'
 
 
-def test_normalize_url_http_normalized_to_https() -> None:
+def test_normalize_url_http_scheme_preserved() -> None:
     url_http, _ = normalize_url('http://x.com/a')
     url_https, _ = normalize_url('https://x.com/a')
-    assert url_http == url_https
+    assert url_http == 'http://x.com/a'
+    assert url_https == 'https://x.com/a'
 
 
 def test_normalize_url_empty_fragment_treated_as_none() -> None:

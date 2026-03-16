@@ -40,7 +40,7 @@ def normalize_url(url: str) -> tuple[str, str | None]:
 
     Transformations applied:
 
-    - Scheme is canonicalized to ``https`` for http/https URLs.
+    - Scheme is preserved (``http`` remains ``http``, ``https`` remains ``https``).
     - Host is lowercased.
     - Fragment is stripped (returned separately).
     - Query string is preserved as part of the URL identity.
@@ -68,7 +68,7 @@ def normalize_url(url: str) -> tuple[str, str | None]:
 
     normalized = urlunparse(
         (
-            'https',
+            parsed.scheme,
             parsed.netloc.lower(),
             _strip_index_filename(parsed.path),
             parsed.params,

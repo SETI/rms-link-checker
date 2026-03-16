@@ -298,6 +298,7 @@ def test_fragment_on_already_visited_page_no_refetch() -> None:
 
 @resp_lib.activate
 def test_visit_once_different_schemes() -> None:
+    """http:// and https:// links to the same path are distinct URLs and both visited."""
     resp_lib.add(
         resp_lib.GET,
         'https://example.com/docs/',
@@ -309,10 +310,11 @@ def test_visit_once_different_schemes() -> None:
         ),
         status=200,
     )
+    resp_lib.add(resp_lib.GET, 'http://example.com/docs/page.html', body='<html/>', status=200)
     resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
     cfg = _cfg()
     results = _crawl(cfg)
-    assert results.statistics.total_requests == 2
+    assert results.statistics.total_requests == 3
 
 
 @resp_lib.activate

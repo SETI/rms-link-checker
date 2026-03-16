@@ -6,7 +6,7 @@ guidelines and instructions for contributing to the project.
 ## Code of Conduct
 
 We expect all contributors to follow our Code of Conduct, which ensures a welcoming and
-inclusive environment for everyone. See CODE_OF_CONDUCT.md.
+inclusive environment for everyone. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Getting Started
 

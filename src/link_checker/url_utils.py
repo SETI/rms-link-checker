@@ -136,6 +136,8 @@ def normalize_internal_url(url: str) -> tuple[str, str | None]:
         A tuple of ``(canonical_url, fragment_or_none)``.
     """
     normalized, fragment = normalize_url(url)
+    if not is_http_url(normalized):
+        return normalized, fragment
     return add_trailing_slash(normalized), fragment
 
 

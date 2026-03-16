@@ -387,6 +387,22 @@ def test_normalize_url_index_html_with_fragment() -> None:
     assert frag == 'intro'
 
 
+def test_normalize_url_index_asp_stripped() -> None:
+    url, _ = normalize_url('https://example.com/dir/index.asp')
+    assert url == 'https://example.com/dir/'
+
+
+def test_normalize_url_index_jsp_stripped() -> None:
+    url, _ = normalize_url('https://example.com/dir/index.jsp')
+    assert url == 'https://example.com/dir/'
+
+
+def test_normalize_url_index_asp_with_fragment() -> None:
+    url, frag = normalize_url('https://example.com/dir/index.asp#frag')
+    assert url == 'https://example.com/dir/'
+    assert frag == 'frag'
+
+
 # ---------------------------------------------------------------------------
 # add_trailing_slash
 # ---------------------------------------------------------------------------
@@ -410,6 +426,23 @@ def test_add_trailing_slash_asset_url_unchanged() -> None:
 
 def test_add_trailing_slash_with_query() -> None:
     assert add_trailing_slash('https://x.com/page?q=1') == 'https://x.com/page/?q=1'
+
+
+def test_add_trailing_slash_fragment_stripped() -> None:
+    """add_trailing_slash operates on already-normalized (fragment-free) URLs;
+    any fragment present is dropped by urlunparse, consistent with the contract
+    that callers pass normalized URLs."""
+    assert add_trailing_slash('https://x.com/page#section') == 'https://x.com/page/'
+
+
+def test_add_trailing_slash_root_with_slash_unchanged() -> None:
+    """Root URL with trailing slash must be returned unchanged."""
+    assert add_trailing_slash('https://x.com/') == 'https://x.com/'
+
+
+def test_add_trailing_slash_bare_host_gets_slash() -> None:
+    """Bare host with no path component gets a trailing slash."""
+    assert add_trailing_slash('https://x.com') == 'https://x.com/'
 
 
 # ---------------------------------------------------------------------------

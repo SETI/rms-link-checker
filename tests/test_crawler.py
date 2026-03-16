@@ -10,6 +10,7 @@ import responses as resp_lib
 
 from link_checker.config import CrawlConfig, load_config
 from link_checker.crawler import Crawler
+from link_checker.results import CrawlResults
 
 # Disable inter-retry sleeps for all crawler tests so they run fast.
 _NO_SLEEP: object = staticmethod(lambda _: None)
@@ -39,7 +40,7 @@ def _cfg_with(**kwargs: object) -> CrawlConfig:
     return replace(base, **kwargs)  # type: ignore[arg-type]
 
 
-def _crawl(cfg: CrawlConfig) -> object:
+def _crawl(cfg: CrawlConfig) -> CrawlResults:
     """Run a crawl with sleep disabled so tests never wait on retries."""
     return Crawler(cfg, sleep=_NO_SLEEP).crawl()  # type: ignore[arg-type]
 

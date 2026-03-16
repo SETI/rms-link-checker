@@ -10,20 +10,21 @@
 #   ./scripts/run-all-checks.sh [options]
 #
 # Options:
-#   -p, --parallel   Run all requested checks in parallel (default)
-#   -s, --sequential Run all requested checks sequentially
-#   -c, --code       Run only code checks (ruff, mypy, pytest)
-#   -d, --docs       Run only Sphinx build and Markdown lint (PyMarkdown)
-#   -m, --markdown   Run only Markdown lint (PyMarkdown)
-#   -h, --help       Show this help message
+#   -p, --parallel         Run all requested checks in parallel (default)
+#   -s, --sequential       Run all requested checks sequentially
+#   -w, --pytest-workers N Pytest workers: auto (default), 1 (serial), or N
+#   -c, --code             Run only code checks (ruff, mypy, pytest)
+#   -d, --docs             Run only Sphinx build and Markdown lint (PyMarkdown)
+#   -m, --markdown         Run only Markdown lint (PyMarkdown)
+#   -h, --help             Show this help message
 #
 # Environment:
-#   VENV or VENV_PATH  Path to virtualenv (default: $PROJECT_ROOT/venv)
-#   CLEANUP_GRACE_PERIOD  Seconds to wait for graceful shutdown (default: 5)
+#   VENV or VENV_PATH        Path to virtualenv (default: $PROJECT_ROOT/venv)
+#   CLEANUP_GRACE_PERIOD     Seconds to wait for graceful shutdown (default: 5)
 #
 # Checks (each run separately; -d runs both Sphinx and Markdown):
-#   Code:    ruff check, ruff format --check, mypy, pytest
-#   Sphinx:  make -C docs html SPHINXOPTS="-W"
+#   Code:     ruff check, ruff format --check, mypy, pytest
+#   Sphinx:   make -C docs html SPHINXOPTS="-W"
 #   Markdown: pymarkdown scan docs/ .cursor/ README.md CONTRIBUTING.md
 #
 # Exit codes:
@@ -43,6 +44,7 @@ RESET='\033[0m'
 
 # Default options
 PARALLEL=true
+PYTEST_WORKERS=auto
 RUN_CODE=false
 RUN_SPHINX=false
 RUN_MARKDOWN=false
@@ -59,10 +61,6 @@ EXIT_CODE=0
 
 # Temp directory for parallel output and status files
 TEMP_DIR=$(mktemp -d)
-# PIDs for background jobs (cleaned up on exit/signal)
-code_pid=""
-sphinx_pid=""
-markdown_pid=""
 
 # Grace period (seconds) before SIGKILL after SIGTERM
 CLEANUP_GRACE_PERIOD=${CLEANUP_GRACE_PERIOD:-5}
@@ -89,18 +87,19 @@ _wait_or_kill() {
 }
 
 _cleanup() {
-    _wait_or_kill "$code_pid"
-    _wait_or_kill "$sphinx_pid"
-    _wait_or_kill "$markdown_pid"
-    code_pid=""
-    sphinx_pid=""
-    markdown_pid=""
     rm -rf "$TEMP_DIR"
 }
 
-# On signal: cleanup then exit with signal-specific code so we don't fall through
+# On INT/TERM: kill all background check jobs with grace period, then exit
 _cleanup_and_exit() {
     local sig_code=$1
+    local pids
+    pids=$(jobs -p)
+    if [ -n "$pids" ]; then
+        for pid in $pids; do
+            _wait_or_kill "$pid"
+        done
+    fi
     _cleanup
     exit "$sig_code"
 }
@@ -143,6 +142,19 @@ while [[ $# -gt 0 ]]; do
             ;;
         -s|--sequential)
             PARALLEL=false
+            shift
+            ;;
+        -w|--pytest-workers)
+            if [[ -z "${2:-}" || "$2" =~ ^- ]]; then
+                echo -e "${RED}Error: -w/--pytest-workers requires a value (auto, 1, 2, ...)${RESET}" >&2
+                show_usage
+                exit 1
+            fi
+            PYTEST_WORKERS="$2"
+            shift 2
+            ;;
+        --pytest-workers=*)
+            PYTEST_WORKERS="${1#*=}"
             shift
             ;;
         -c|--code)
@@ -189,6 +201,9 @@ if [ "$PARALLEL" = true ]; then
 else
     print_info "Running checks in SEQUENTIAL mode"
 fi
+if [ "$RUN_CODE" = true ]; then
+    print_info "Pytest workers: $PYTEST_WORKERS"
+fi
 
 # ---- Code checks (ruff, mypy, pytest) ----
 run_code_checks() {
@@ -215,36 +230,42 @@ run_code_checks() {
     local failed=false
     local failed_checks=""
 
-    if ! python -m ruff check src tests; then
+    print_info "Running ruff check..."
+    if python -m ruff check src tests; then
+        print_success "Ruff check passed"
+    else
         print_error "Ruff check failed"
         failed=true
         failed_checks="${failed_checks}Code - Ruff check"$'\n'
-    else
-        print_success "Ruff check passed"
     fi
 
-    if ! python -m ruff format --check src tests; then
+    print_info "Running ruff format --check..."
+    if python -m ruff format --check src tests; then
+        print_success "Ruff format check passed"
+    else
         print_error "Ruff format check failed"
         failed=true
         failed_checks="${failed_checks}Code - Ruff format"$'\n'
-    else
-        print_success "Ruff format check passed"
     fi
 
-    if ! MYPYPATH=src python -m mypy src tests; then
+    print_info "Running mypy..."
+    if MYPYPATH=src python -m mypy src tests; then
+        print_success "Mypy passed"
+    else
         print_error "Mypy failed"
         failed=true
         failed_checks="${failed_checks}Code - Mypy"$'\n'
-    else
-        print_success "Mypy passed"
     fi
 
-    if ! python -m pytest tests -q -n auto --cov=src/; then
+    # -n controls parallelism; --dist loadscope keeps each test module on one
+    # worker to avoid time-mocking and fixture-isolation interference
+    print_info "Running pytest (-n ${PYTEST_WORKERS})..."
+    if python -m pytest --cov=src -q -n "$PYTEST_WORKERS" --dist loadscope tests; then
+        print_success "Pytest passed"
+    else
         print_error "Pytest failed"
         failed=true
         failed_checks="${failed_checks}Code - Pytest"$'\n'
-    else
-        print_success "Pytest passed"
     fi
 
     deactivate 2>/dev/null || true
@@ -338,84 +359,77 @@ _collect_status() {
 
 # ---- Run requested checks ----
 if [ "$PARALLEL" = true ]; then
-    # Start each requested check in background and record PIDs
     print_info "Running requested checks in parallel, please wait..."
+
+    pids=()
+    temp_files=()
+    status_files=()
 
     if [ "$RUN_CODE" = true ]; then
         code_output="$TEMP_DIR/code.log"
         code_status="$TEMP_DIR/code.status"
+        temp_files+=("$code_output")
+        status_files+=("$code_status")
         run_code_checks "$code_output" "$code_status" &
-        code_pid=$!
+        pids+=($!)
     fi
 
     if [ "$RUN_SPHINX" = true ]; then
         sphinx_output="$TEMP_DIR/sphinx.log"
         sphinx_status="$TEMP_DIR/sphinx.status"
+        temp_files+=("$sphinx_output")
+        status_files+=("$sphinx_status")
         run_sphinx_build "$sphinx_output" "$sphinx_status" &
-        sphinx_pid=$!
+        pids+=($!)
     fi
 
     if [ "$RUN_MARKDOWN" = true ]; then
         markdown_output="$TEMP_DIR/markdown.log"
         markdown_status="$TEMP_DIR/markdown.status"
+        temp_files+=("$markdown_output")
+        status_files+=("$markdown_status")
         run_markdown_checks "$markdown_output" "$markdown_status" &
-        markdown_pid=$!
+        pids+=($!)
     fi
 
-    # Wait for each job and capture exit code; any failure sets EXIT_CODE=1
-    if [ -n "$code_pid" ]; then
-        if ! wait "$code_pid"; then
+    # Wait for all jobs; any non-zero exit sets EXIT_CODE=1
+    for pid in "${pids[@]}"; do
+        if ! wait "$pid"; then
             EXIT_CODE=1
         fi
-        code_pid=""
-        _collect_status "${TEMP_DIR}/code.status"
-    fi
+    done
 
-    if [ -n "$sphinx_pid" ]; then
-        if ! wait "$sphinx_pid"; then
-            EXIT_CODE=1
-        fi
-        sphinx_pid=""
-        _collect_status "${TEMP_DIR}/sphinx.status"
-    fi
+    # Collect named failures from status files
+    for status_file in "${status_files[@]}"; do
+        _collect_status "$status_file"
+    done
 
-    if [ -n "$markdown_pid" ]; then
-        if ! wait "$markdown_pid"; then
-            EXIT_CODE=1
-        fi
-        markdown_pid=""
-        _collect_status "${TEMP_DIR}/markdown.status"
-    fi
+    # Safety net: if any status file had content, ensure EXIT_CODE reflects it
+    [ ${#FAILED_CHECKS[@]} -gt 0 ] && EXIT_CODE=1
 
-    # Print all output in a fixed order
+    # Print all outputs in a fixed order
     echo ""
-    [ -f "${TEMP_DIR}/code.log" ] && cat "${TEMP_DIR}/code.log"
-    [ -f "${TEMP_DIR}/sphinx.log" ] && cat "${TEMP_DIR}/sphinx.log"
-    [ -f "${TEMP_DIR}/markdown.log" ] && cat "${TEMP_DIR}/markdown.log"
+    for log_file in "${temp_files[@]}"; do
+        [ -f "$log_file" ] && cat "$log_file"
+    done
 else
     # Sequential
     if [ "$RUN_CODE" = true ]; then
-        code_status="$TEMP_DIR/code.status"
-        if ! run_code_checks "" "$code_status"; then
+        if ! run_code_checks; then
             EXIT_CODE=1
         fi
-        _collect_status "$code_status"
     fi
 
     if [ "$RUN_SPHINX" = true ]; then
-        sphinx_status="$TEMP_DIR/sphinx.status"
-        if ! run_sphinx_build "" "$sphinx_status"; then
+        if ! run_sphinx_build; then
             EXIT_CODE=1
         fi
-        _collect_status "$sphinx_status"
     fi
 
     if [ "$RUN_MARKDOWN" = true ]; then
-        markdown_status="$TEMP_DIR/markdown.status"
-        if ! run_markdown_checks "" "$markdown_status"; then
+        if ! run_markdown_checks; then
             EXIT_CODE=1
         fi
-        _collect_status "$markdown_status"
     fi
 fi
 
@@ -438,8 +452,8 @@ else
         for check in "${FAILED_CHECKS[@]}"; do
             echo -e "  ${RED}✗${RESET} $check"
         done
+        echo -e "${RED}${BOLD}✗ FAILURE${RESET} - ${#FAILED_CHECKS[@]} check(s) failed"
     fi
-    echo -e "${RED}${BOLD}✗ FAILURE${RESET} - One or more check(s) failed"
 fi
 
 echo ""

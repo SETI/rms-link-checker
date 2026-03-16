@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import replace
 
 import requests.exceptions
@@ -13,7 +14,7 @@ from link_checker.crawler import Crawler
 from link_checker.results import CrawlResults
 
 # Disable inter-retry sleeps for all crawler tests so they run fast.
-_NO_SLEEP: object = staticmethod(lambda _: None)
+_NO_SLEEP: Callable[[float], None] = lambda _: None
 
 
 def _cfg(**kwargs: object) -> CrawlConfig:
@@ -42,12 +43,12 @@ def _cfg_with(**kwargs: object) -> CrawlConfig:
 
 def _crawl(cfg: CrawlConfig) -> CrawlResults:
     """Run a crawl with sleep disabled so tests never wait on retries."""
-    return Crawler(cfg, sleep=_NO_SLEEP).crawl()  # type: ignore[arg-type]
+    return Crawler(cfg, sleep=_NO_SLEEP).crawl()
 
 
 def _make_crawler(cfg: CrawlConfig) -> Crawler:
     """Construct a Crawler with sleep disabled."""
-    return Crawler(cfg, sleep=_NO_SLEEP)  # type: ignore[arg-type]
+    return Crawler(cfg, sleep=_NO_SLEEP)
 
 
 # ---------------------------------------------------------------------------
@@ -903,6 +904,10 @@ def test_already_visited_ignored_url_accumulates_referrers() -> None:
     matches = [m for m in results.ignore_matches if m.url == 'https://example.com/docs/skip/x.html']
     assert matches
     assert len(matches[0].referencing_pages) == 2
+
+
+@resp_lib.activate
+def test_already_visited_redirect_accumulates_referrers() -> None:
     """A redirecting URL linked from two pages should list both referrers."""
     resp_lib.add(
         resp_lib.GET,

@@ -103,7 +103,7 @@ Apply these rules to ALL new and modified Python code. This project is a Python 
 
 ### Coverage and correctness
 
-- Target at least **80%** line coverage measured over the entire test suite (not a subset). Skipping hard-to-hit exception paths is acceptable.
+- Target at least **90%** line coverage measured over the entire test suite (not a subset). Skipping hard-to-hit exception paths is acceptable.
 - NEVER write tests whose sole purpose is exercising code paths without asserting correctness.
 - Each `assert` MUST test exactly one condition (no `and` in assertions).
 - ALWAYS test for precise expected values, not ranges or existence checks. If the expected value is only known after implementation, update the test accordingly.

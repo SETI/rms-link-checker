@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 # Each entry: (element_name, attribute, is_asset)
-_LINK_SPEC: list[tuple[str, str, bool]] = [
+_LINK_SPEC: tuple[tuple[str, str, bool], ...] = (
     ('a', 'href', False),
     ('img', 'src', True),
     ('img', 'srcset', True),
@@ -23,7 +23,7 @@ _LINK_SPEC: list[tuple[str, str, bool]] = [
     ('object', 'data', True),
     ('embed', 'src', True),
     ('form', 'action', False),
-]
+)
 
 
 @dataclass(frozen=True)
@@ -54,7 +54,7 @@ def extract_links(
     Relative URLs are resolved against *base_url* (if given) or the
     ``<base href>`` tag in the document, falling back to *page_url*.
 
-    Args:
+    Parameters:
         html: Raw HTML string to parse.
         page_url: URL of the page (used for relative URL resolution).
         base_url: Override for relative URL resolution. Supersedes any
@@ -106,7 +106,7 @@ def extract_links(
 def extract_anchors(html: str) -> frozenset[str]:
     """Extract all anchor IDs from *html* (``id`` attributes and ``<a name>``)
 
-    Args:
+    Parameters:
         html: Raw HTML string.
 
     Returns:
@@ -135,7 +135,7 @@ def extract_anchors(html: str) -> frozenset[str]:
 def find_base_href(html: str) -> str | None:
     """Return the first ``<base href>`` value from the document ``<head>``.
 
-    Args:
+    Parameters:
         html: Raw HTML string.
 
     Returns:
@@ -151,7 +151,7 @@ def _find_base_href_from_soup(soup: BeautifulSoup) -> str | None:
     Searches only within ``<head>`` per the HTML specification, which requires
     ``<base>`` to be a child of ``<head>``.
 
-    Args:
+    Parameters:
         soup: Parsed :class:`~bs4.BeautifulSoup` document.
 
     Returns:
@@ -172,7 +172,7 @@ def _parse_srcset(value: str) -> list[str]:
 
     Handles both bare URLs and ``url descriptor`` pairs.
 
-    Args:
+    Parameters:
         value: Raw ``srcset`` attribute string.
 
     Returns:

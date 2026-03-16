@@ -102,14 +102,14 @@ def test_report_statistics_per_domain() -> None:
 
 def test_report_broken_links_header_count() -> None:
     r = CrawlResults()
-    r.add_broken_link('https://example.com/missing', 404, '404 Not Found', 'https://example.com/')
+    r.add_broken_link(url='https://example.com/missing', status_code=404, error='404 Not Found', referrer='https://example.com/')
     report = generate_report(r, _cfg())
     assert '=== Broken Links (1) ===' in report
 
 
 def test_report_broken_links_shows_url_and_error() -> None:
     r = CrawlResults()
-    r.add_broken_link('https://example.com/missing', 404, '404 Not Found', 'https://example.com/')
+    r.add_broken_link(url='https://example.com/missing', status_code=404, error='404 Not Found', referrer='https://example.com/')
     report = generate_report(r, _cfg())
     assert 'https://example.com/missing' in report
     assert '404 Not Found' in report
@@ -118,7 +118,10 @@ def test_report_broken_links_shows_url_and_error() -> None:
 def test_report_broken_links_grouped_by_page() -> None:
     r = CrawlResults()
     r.add_broken_link(
-        'https://example.com/missing', 404, '404 Not Found', 'https://example.com/src'
+        url='https://example.com/missing',
+        status_code=404,
+        error='404 Not Found',
+        referrer='https://example.com/src',
     )
     report = generate_report(r, _cfg())
     assert 'Page: https://example.com/src' in report
@@ -176,7 +179,10 @@ def test_report_non200_grouped_by_status() -> None:
 def test_report_redirects_header_count() -> None:
     r = CrawlResults()
     r.add_redirect(
-        'https://example.com/old', 'https://example.com/new', 301, 'https://example.com/'
+        original_url='https://example.com/old',
+        final_url='https://example.com/new',
+        status_code=301,
+        referrer='https://example.com/',
     )
     report = generate_report(r, _cfg())
     assert '=== Redirects (1) ===' in report
@@ -185,7 +191,10 @@ def test_report_redirects_header_count() -> None:
 def test_report_redirects_shows_chain() -> None:
     r = CrawlResults()
     r.add_redirect(
-        'https://example.com/old', 'https://example.com/new', 301, 'https://example.com/'
+        original_url='https://example.com/old',
+        final_url='https://example.com/new',
+        status_code=301,
+        referrer='https://example.com/',
     )
     report = generate_report(r, _cfg())
     assert 'https://example.com/old  →  https://example.com/new (301)' in report
@@ -256,7 +265,10 @@ def test_report_non_http_links_shows_url() -> None:
 def test_report_ssl_warnings_header() -> None:
     r = CrawlResults()
     r.add_ssl_warning(
-        'https://bad.example.com/p', 'bad.example.com', 'cert expired', 'https://example.com/'
+        url='https://bad.example.com/p',
+        domain='bad.example.com',
+        error='cert expired',
+        referrer='https://example.com/',
     )
     report = generate_report(r, _cfg())
     assert '=== SSL Warnings (1 domain) ===' in report
@@ -265,10 +277,16 @@ def test_report_ssl_warnings_header() -> None:
 def test_report_ssl_warnings_grouped_by_domain() -> None:
     r = CrawlResults()
     r.add_ssl_warning(
-        'https://bad.example.com/p1', 'bad.example.com', 'cert expired', 'https://example.com/a'
+        url='https://bad.example.com/p1',
+        domain='bad.example.com',
+        error='cert expired',
+        referrer='https://example.com/a',
     )
     r.add_ssl_warning(
-        'https://bad.example.com/p2', 'bad.example.com', 'cert expired', 'https://example.com/b'
+        url='https://bad.example.com/p2',
+        domain='bad.example.com',
+        error='cert expired',
+        referrer='https://example.com/b',
     )
     report = generate_report(r, _cfg())
     assert 'bad.example.com — cert expired' in report
@@ -278,8 +296,8 @@ def test_report_ssl_warnings_grouped_by_domain() -> None:
 
 def test_report_ssl_warnings_plural_domains() -> None:
     r = CrawlResults()
-    r.add_ssl_warning('https://a.example.com/p', 'a.example.com', 'err', 'https://example.com/')
-    r.add_ssl_warning('https://b.example.com/p', 'b.example.com', 'err', 'https://example.com/')
+    r.add_ssl_warning(url='https://a.example.com/p', domain='a.example.com', error='err', referrer='https://example.com/')
+    r.add_ssl_warning(url='https://b.example.com/p', domain='b.example.com', error='err', referrer='https://example.com/')
     report = generate_report(r, _cfg())
     assert '=== SSL Warnings (2 domains) ===' in report
 
@@ -405,8 +423,8 @@ def test_non200_truncation_more_line() -> None:
 def test_redirects_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
-    r.add_redirect('https://example.com/old', 'https://example.com/new', 301, 'ref1')
-    r.add_redirect('https://example.com/old', 'https://example.com/new', 301, 'ref2')
+    r.add_redirect(original_url='https://example.com/old', final_url='https://example.com/new', status_code=301, referrer='ref1')
+    r.add_redirect(original_url='https://example.com/old', final_url='https://example.com/new', status_code=301, referrer='ref2')
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report
 
@@ -432,8 +450,8 @@ def test_non_http_links_truncation_more_line() -> None:
 def test_ssl_warnings_truncation_more_line() -> None:
     r = CrawlResults()
     cfg = replace(_cfg(), max_referencing_pages=1)
-    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'err', 'ref1')
-    r.add_ssl_warning('https://bad.example.com/x', 'bad.example.com', 'err', 'ref2')
+    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref1')
+    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref2')
     report = generate_report(r, cfg)
     assert '... and 1 more referencing pages' in report
 

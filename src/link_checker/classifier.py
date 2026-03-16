@@ -73,7 +73,7 @@ class UrlDisposition(Enum):
 def classify_asset(extension: str) -> AssetType:
     """Return the :class:`AssetType` for a file extension.
 
-    Args:
+    Parameters:
         extension: Lowercase file extension including leading dot (e.g. ``'.jpg'``).
 
     Returns:
@@ -112,7 +112,7 @@ def classify_url(
     7. Internal HTML/no-extension → :attr:`UrlDisposition.INTERNAL_CRAWL`
     8. Internal asset → :attr:`UrlDisposition.INTERNAL_ASSET`
 
-    Args:
+    Parameters:
         url: The URL to classify (absolute, not yet normalized for query/fragment).
         config: Current crawl configuration.
         root_url: Normalized root URL.
@@ -170,7 +170,7 @@ def is_misplaced_asset(
     4. The asset is not matched by an ``ignore_urls`` prefix.
     5. The asset is not matched by a ``no_crawl_urls`` prefix.
 
-    Args:
+    Parameters:
         url: The asset URL to test.
         config: Current crawl configuration.
         root_url: Normalized root URL.

@@ -210,7 +210,7 @@ class CrawlResults:
 
         Must be called inside ``self._lock``.
 
-        Args:
+        Parameters:
             url: The URL whose pending referrers to drain.
 
         Returns:
@@ -225,11 +225,11 @@ class CrawlResults:
         the referrer is queued and will be applied automatically when the
         entry is created by the corresponding ``add_*`` call.
 
-        Args:
+        Parameters:
             url: Canonical URL to look up.
             referrer: Page that linked to *url*.
         """
-        if not referrer:
+        if referrer == '':
             return
         with self._lock:
             found = False
@@ -269,10 +269,10 @@ class CrawlResults:
     # Broken links
     # ------------------------------------------------------------------
 
-    def add_broken_link(self, url: str, status_code: int, error: str, referrer: str) -> None:
+    def add_broken_link(self, *, url: str, status_code: int, error: str, referrer: str) -> None:
         """Record a broken link.
 
-        Args:
+        Parameters:
             url: The broken URL.
             status_code: HTTP status code.
             error: Error or status description.
@@ -303,6 +303,7 @@ class CrawlResults:
 
     def add_redirect(
         self,
+        *,
         original_url: str,
         final_url: str,
         status_code: int,
@@ -310,7 +311,7 @@ class CrawlResults:
     ) -> None:
         """Record a redirect.
 
-        Args:
+        Parameters:
             original_url: The URL that redirected.
             final_url: Destination URL after all redirects.
             status_code: Final HTTP status code.
@@ -346,7 +347,7 @@ class CrawlResults:
     def add_broken_anchor(self, target_url: str, referrer: str) -> None:
         """Record a broken anchor (fragment not found in target page).
 
-        Args:
+        Parameters:
             target_url: Full URL including the missing fragment.
             referrer: Page that contained the link.
         """
@@ -373,7 +374,7 @@ class CrawlResults:
     def add_unvalidated_anchor(self, target_url: str, reason: str, referrer: str) -> None:
         """Record an anchor that could not be validated.
 
-        Args:
+        Parameters:
             target_url: Full URL including fragment.
             reason: Why validation was skipped (``'no-crawl'``, ``'external'``,
                 ``'depth-limited'``).
@@ -404,7 +405,7 @@ class CrawlResults:
     def add_non200(self, url: str, status_code: int, referrer: str) -> None:
         """Record a URL that returned a non-200 final status.
 
-        Args:
+        Parameters:
             url: The URL.
             status_code: HTTP status code.
             referrer: Page that linked to the URL.
@@ -435,7 +436,7 @@ class CrawlResults:
     def add_misplaced_asset(self, url: str, asset_type: str, referrer: str) -> None:
         """Record a misplaced asset.
 
-        Args:
+        Parameters:
             url: The asset URL.
             asset_type: String label of the asset type.
             referrer: Page that referenced the asset.
@@ -463,10 +464,10 @@ class CrawlResults:
     # SSL warnings
     # ------------------------------------------------------------------
 
-    def add_ssl_warning(self, url: str, domain: str, error: str, referrer: str) -> None:
+    def add_ssl_warning(self, *, url: str, domain: str, error: str, referrer: str) -> None:
         """Record an SSL certificate error.
 
-        Args:
+        Parameters:
             url: The URL that triggered the SSL error.
             domain: The domain of the URL.
             error: SSL error description.
@@ -511,7 +512,7 @@ class CrawlResults:
     def add_non_http_link(self, url: str, scheme: str, referrer: str) -> None:
         """Record a non-HTTP scheme link.
 
-        Args:
+        Parameters:
             url: The full non-HTTP URL.
             scheme: The URL scheme (e.g. ``'mailto'``).
             referrer: Page containing the link.
@@ -542,7 +543,7 @@ class CrawlResults:
     def add_ignore_match(self, url: str, referrer: str) -> None:
         """Record a URL that was ignored.
 
-        Args:
+        Parameters:
             url: The ignored URL.
             referrer: Page containing the link.
         """
@@ -572,7 +573,7 @@ class CrawlResults:
     def add_no_crawl_match(self, url: str, referrer: str) -> None:
         """Record a URL that matched a no-crawl prefix.
 
-        Args:
+        Parameters:
             url: The URL.
             referrer: Page containing the link.
         """
@@ -609,7 +610,7 @@ class CrawlResults:
     ) -> None:
         """Update statistics for a completed HTTP request.
 
-        Args:
+        Parameters:
             url: The URL that was requested.
             bytes_downloaded: Bytes received.
             crawled: True if the page was crawled (GET + parsed).

@@ -58,7 +58,7 @@ class RequestResult:
 class HttpClient:
     """HTTP client wrapping :mod:`requests` with retry, redirect, and SSL handling.
 
-    Args:
+    Parameters:
         timeout: Timeout in seconds for each individual request attempt.
         retries: Maximum number of retry attempts for transient failures.
         user_agent: User-Agent header value to send with every request.
@@ -81,7 +81,7 @@ class HttpClient:
     ) -> None:
         """Initialise the HTTP client.
 
-        Args:
+        Parameters:
             timeout: Timeout in seconds per request attempt.
             retries: Max retry attempts for transient errors.
             user_agent: User-Agent string.
@@ -103,6 +103,11 @@ class HttpClient:
         return set(self._ssl_warned_domains)
 
     def _make_session(self) -> requests.Session:
+        """Create a new :class:`~requests.Session` with a cleared cookie jar and User-Agent set.
+
+        Returns:
+            Configured :class:`~requests.Session` instance.
+        """
         session = requests.Session()
         session.cookies.clear()
         session.headers.update({'User-Agent': self._user_agent})
@@ -114,7 +119,7 @@ class HttpClient:
         If *method* is ``'HEAD'`` and the server returns 405, automatically
         retries with ``'GET'``.
 
-        Args:
+        Parameters:
             url: The URL to request.
             method: HTTP method string (``'HEAD'`` or ``'GET'``).
 
@@ -131,7 +136,7 @@ class HttpClient:
     def _request_with_retry(self, url: str, *, method: str) -> RequestResult:
         """Attempt a request up to ``retries + 1`` times on transient failures.
 
-        Args:
+        Parameters:
             url: Target URL.
             method: HTTP method string.
 
@@ -197,7 +202,7 @@ class HttpClient:
     def _is_transient(self, status_code: int) -> bool:
         """Return True if *status_code* indicates a transient failure.
 
-        Args:
+        Parameters:
             status_code: HTTP status code integer.
 
         Returns:
@@ -208,7 +213,7 @@ class HttpClient:
     def _do_request(self, url: str, method: str) -> RequestResult:
         """Perform a single HTTP request, manually following redirects up to the limit.
 
-        Args:
+        Parameters:
             url: Starting URL.
             method: HTTP method string.
 

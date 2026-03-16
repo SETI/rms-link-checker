@@ -179,7 +179,7 @@ def test_classify_url_not_ignored_when_no_match() -> None:
         visited_set=set(),
         depth=0,
     )
-    assert result != UrlDisposition.IGNORED
+    assert result == UrlDisposition.INTERNAL_CRAWL
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +291,7 @@ def test_classify_url_at_max_depth_is_not_limited() -> None:
         visited_set=set(),
         depth=2,
     )
-    assert result in (UrlDisposition.INTERNAL_CRAWL, UrlDisposition.INTERNAL_ASSET)
+    assert result == UrlDisposition.INTERNAL_CRAWL
 
 
 # ---------------------------------------------------------------------------
@@ -348,7 +348,7 @@ def test_classify_url_no_depth_limit_not_limited() -> None:
         visited_set=set(),
         depth=5,
     )
-    assert result in (UrlDisposition.INTERNAL_CRAWL, UrlDisposition.INTERNAL_ASSET)
+    assert result == UrlDisposition.INTERNAL_CRAWL
 
 
 # ---------------------------------------------------------------------------

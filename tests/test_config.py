@@ -325,11 +325,11 @@ def test_url_list_null_treated_as_empty(tmp_path: Path, field: str) -> None:
     assert getattr(cfg, field) == ()
 
 
-def test_log_level_case_insensitive() -> None:
-    for value in ('debug', 'Debug', 'WARNING', 'warning', 'Error', 'critical', 'INFO'):
-        ns = _minimal_namespace(root_url='https://example.com', log_level=value)
-        cfg = load_config(ns)
-        assert cfg.log_level == value.upper()
+@pytest.mark.parametrize('value', ['debug', 'Debug', 'WARNING', 'warning', 'Error', 'critical', 'INFO'])
+def test_log_level_case_insensitive(value: str) -> None:
+    ns = _minimal_namespace(root_url='https://example.com', log_level=value)
+    cfg = load_config(ns)
+    assert cfg.log_level == value.upper()
 
 
 # ---------------------------------------------------------------------------
@@ -367,5 +367,5 @@ def test_max_depth_zero_is_valid() -> None:
 
 def test_crawl_config_is_frozen() -> None:
     cfg = CrawlConfig(root_url='https://example.com')
-    with pytest.raises((AttributeError, TypeError, dataclasses.FrozenInstanceError)):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         cfg.timeout = 99  # type: ignore[misc]

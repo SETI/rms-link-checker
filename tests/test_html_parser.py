@@ -5,10 +5,6 @@ from __future__ import annotations
 from link_checker.html_parser import ExtractedLink, extract_anchors, extract_links, find_base_href
 
 
-def _page(url: str = 'https://example.com/page.html') -> str:
-    return url
-
-
 # ---------------------------------------------------------------------------
 # extract_links
 # ---------------------------------------------------------------------------

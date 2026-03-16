@@ -12,6 +12,11 @@ from link_checker.crawler import Crawler
 from link_checker.progress import ProgressReporter
 from link_checker.report import generate_report
 
+_EXIT_OK = 0
+_EXIT_PROBLEMS = 1
+_EXIT_CONFIG_ERROR = 2
+_EXIT_INTERRUPTED = 130
+
 
 def _build_parser() -> argparse.ArgumentParser:
     """Build and return the argument parser for the link_check CLI.
@@ -109,13 +114,13 @@ def _build_parser() -> argparse.ArgumentParser:
 def _setup_logging(log_file: str | None, log_level: str) -> None:
     """Configure the ``link_checker`` logger.
 
-    Args:
+    Parameters:
         log_file: File path for log output. If None, logs go to stderr.
         log_level: Log level string (e.g. ``'INFO'``).
     """
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     handler: logging.Handler
-    if log_file:
+    if log_file is not None:
         handler = logging.FileHandler(log_file, encoding='utf-8')
     else:
         handler = logging.StreamHandler(sys.stderr)
@@ -140,7 +145,7 @@ def main() -> None:
         config = load_config(args, config_path=args.config_file)
     except ValueError as exc:
         print(f'Error: {exc}', file=sys.stderr)
-        sys.exit(2)
+        sys.exit(_EXIT_CONFIG_ERROR)
 
     _setup_logging(config.log_file, config.log_level)
 
@@ -169,4 +174,4 @@ def main() -> None:
     else:
         print(report, end='')
 
-    sys.exit(130 if interrupted else (1 if results.has_problems() else 0))
+    sys.exit(_EXIT_INTERRUPTED if interrupted else (_EXIT_PROBLEMS if results.has_problems() else _EXIT_OK))

@@ -78,7 +78,7 @@ def test_version_flag(capsys: pytest.CaptureFixture[str]) -> None:
         parser.parse_args(['--version'])
     assert exc.value.code == 0
     captured = capsys.readouterr()
-    assert __version__ in captured.out or __version__ in captured.err
+    assert __version__ in captured.out
 
 
 def test_config_file_loaded(tmp_path: Path) -> None:
@@ -144,7 +144,7 @@ def test_exit_code_0_clean() -> None:
 def test_exit_code_1_broken() -> None:
     resp_lib.add(
         resp_lib.GET,
-        'https://example.com',
+        'https://example.com/',
         body='<html><body><a href="/missing.html">m</a></body></html>',
         status=200,
     )
@@ -159,13 +159,14 @@ def test_exit_code_1_broken() -> None:
 def test_log_file_option(tmp_path: Path) -> None:
     """Passing --log-file must write log output to a file."""
     log_file = tmp_path / 'crawl.log'
-    resp_lib.add(resp_lib.GET, 'https://example.com', body='<html/>', status=200)
+    resp_lib.add(resp_lib.GET, 'https://example.com/', body='<html/>', status=200)
     with patch(
         'sys.argv',
-        ['link_check', 'https://example.com', '--log-file', str(log_file)],
+        ['link_check', 'https://example.com', '--log-file', str(log_file), '--log-level', 'DEBUG'],
     ), pytest.raises(SystemExit):
         main()
     assert log_file.exists()
+    assert log_file.stat().st_size > 0
 
 
 @resp_lib.activate

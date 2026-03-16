@@ -10,6 +10,9 @@ from link_checker.config import CrawlConfig
 from link_checker.results import CrawlResults
 
 
+_BYTES_PER_MB = 1024 * 1024
+
+
 def generate_report(results: CrawlResults, config: CrawlConfig) -> str:
     """Generate the full plain-text report for a completed crawl.
 
@@ -17,7 +20,7 @@ def generate_report(results: CrawlResults, config: CrawlConfig) -> str:
     broken anchors, non-200 responses, redirects, misplaced assets, ignored
     URLs, non-HTTP links, SSL warnings, and unvalidated anchors.
 
-    Args:
+    Parameters:
         results: Completed crawl results.
         config: Crawl configuration used.
 
@@ -46,6 +49,14 @@ def generate_report(results: CrawlResults, config: CrawlConfig) -> str:
 
 
 def _section_config_summary(config: CrawlConfig) -> str:
+    """Render the Configuration Summary section.
+
+    Parameters:
+        config: Crawl configuration.
+
+    Returns:
+        Formatted section string.
+    """
     lines = ['=== Configuration Summary ===']
     lines.append(f'Root URL:        {config.root_url}')
     lines.append(f'Timeout:         {config.timeout}s')
@@ -56,7 +67,7 @@ def _section_config_summary(config: CrawlConfig) -> str:
     max_req_str = str(config.max_requests) if config.max_requests is not None else 'unlimited'
     lines.append(f'Max requests:    {max_req_str}')
     lines.append(f'Max ref. pages:  {config.max_referencing_pages}')
-    if config.output:
+    if config.output is not None:
         lines.append(f'Output file:     {config.output}')
 
     if config.asset_urls:
@@ -86,12 +97,20 @@ def _section_config_summary(config: CrawlConfig) -> str:
 
 
 def _section_statistics(results: CrawlResults) -> str:
+    """Render the Statistics Summary section.
+
+    Parameters:
+        results: Completed crawl results.
+
+    Returns:
+        Formatted section string.
+    """
     stats = results.statistics
     elapsed = time.time() - stats.start_time
     minutes = int(elapsed // 60)
     seconds = int(elapsed % 60)
     rps = stats.total_requests / elapsed if elapsed > 0 else 0.0
-    mb = stats.bytes_downloaded / (1024 * 1024)
+    mb = stats.bytes_downloaded / _BYTES_PER_MB
 
     lines = ['=== Statistics Summary ===']
     lines.append(f'Elapsed time:            {minutes}m {seconds}s')
@@ -144,6 +163,15 @@ def _section_statistics(results: CrawlResults) -> str:
 
 
 def _section_broken_links(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Broken Links section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.broken_links
     lines = [f'=== Broken Links ({len(items)}) ===']
     if not items:
@@ -169,6 +197,15 @@ def _section_broken_links(results: CrawlResults, config: CrawlConfig) -> str:
 
 
 def _section_broken_anchors(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Broken Anchors section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.broken_anchors
     lines = [f'=== Broken Anchors ({len(items)}) ===']
     for ba in items:
@@ -189,6 +226,15 @@ def _section_broken_anchors(results: CrawlResults, config: CrawlConfig) -> str:
 
 
 def _section_non200_responses(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Non-200 Responses section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.non200_responses
     lines = [f'=== Non-200 Responses ({len(items)}) ===']
     by_status: dict[int, list[tuple[str, list[str]]]] = defaultdict(list)
@@ -216,6 +262,15 @@ def _section_non200_responses(results: CrawlResults, config: CrawlConfig) -> str
 
 
 def _section_redirects(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Redirects section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.redirects
     lines = [f'=== Redirects ({len(items)}) ===']
     for r in items:
@@ -238,6 +293,18 @@ _ASSET_TYPE_ORDER = ['Image', 'Document', 'Data', 'Infrastructure', 'Other']
 
 
 def _section_misplaced_assets(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Misplaced Assets section.
+
+    Assets are grouped by type.  Within each type, entries are sorted
+    alphabetically by filename and separated by blank lines.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.misplaced_assets
     lines = [f'=== Misplaced Assets ({len(items)}) ===']
 
@@ -268,31 +335,20 @@ def _section_misplaced_assets(results: CrawlResults, config: CrawlConfig) -> str
 
 
 # ---------------------------------------------------------------------------
-# §10.8 No-Crawl URL Matches
-# ---------------------------------------------------------------------------
-
-
-def _section_no_crawl_matches(results: CrawlResults, config: CrawlConfig) -> str:
-    items = results.no_crawl_matches
-    lines = [f'=== No-Crawl URL Matches ({len(items)}) ===']
-    for m in items:
-        lines.append('')
-        lines.append(m.url)
-        lines.append('  Referenced by:')
-        for page in _truncated_pages(m.referencing_pages, config.max_referencing_pages):
-            lines.append(f'    - {page}')
-        extra = len(m.referencing_pages) - config.max_referencing_pages
-        if extra > 0:
-            lines.append(f'    ... and {extra} more referencing pages')
-    return '\n'.join(lines)
-
-
-# ---------------------------------------------------------------------------
 # §10.9 Ignore URL Matches
 # ---------------------------------------------------------------------------
 
 
 def _section_ignore_matches(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Ignore URL Matches section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.ignore_matches
     lines = [f'=== Ignore URL Matches ({len(items)}) ===']
     for m in items:
@@ -313,6 +369,15 @@ def _section_ignore_matches(results: CrawlResults, config: CrawlConfig) -> str:
 
 
 def _section_non_http_links(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Non-HTTP Scheme Links section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.non_http_links
     lines = [f'=== Non-HTTP Scheme Links ({len(items)}) ===']
     for lk in items:
@@ -333,6 +398,15 @@ def _section_non_http_links(results: CrawlResults, config: CrawlConfig) -> str:
 
 
 def _section_ssl_warnings(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the SSL Warnings section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.ssl_warnings
     lines = [f'=== SSL Warnings ({len(items)} domain{"s" if len(items) != 1 else ""}) ===']
     for sw in items:
@@ -356,6 +430,15 @@ def _section_ssl_warnings(results: CrawlResults, config: CrawlConfig) -> str:
 
 
 def _section_unvalidated_anchors(results: CrawlResults, config: CrawlConfig) -> str:
+    """Render the Unvalidated Anchors section.
+
+    Parameters:
+        results: Completed crawl results.
+        config: Crawl configuration (used for ``max_referencing_pages``).
+
+    Returns:
+        Formatted section string.
+    """
     items = results.unvalidated_anchors
     lines = [f'=== Unvalidated Anchors ({len(items)}) ===']
     for ua in items:
@@ -378,7 +461,7 @@ def _section_unvalidated_anchors(results: CrawlResults, config: CrawlConfig) -> 
 def _truncated_pages(pages: list[str], max_pages: int) -> list[str]:
     """Return at most *max_pages* items from *pages*.
 
-    Args:
+    Parameters:
         pages: List of page URLs.
         max_pages: Maximum number to return.
 
@@ -391,7 +474,7 @@ def _truncated_pages(pages: list[str], max_pages: int) -> list[str]:
 def _http_reason(status_code: int) -> str:
     """Return the HTTP reason phrase for *status_code*, or an empty string.
 
-    Args:
+    Parameters:
         status_code: HTTP status code integer.
 
     Returns:

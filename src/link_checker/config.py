@@ -74,7 +74,7 @@ def load_config(
 
     Precedence (highest to lowest): CLI arguments > YAML file > defaults.
 
-    Args:
+    Parameters:
         cli_namespace: Parsed argparse namespace. Fields set to ``None``
             are treated as "not specified" and do not override YAML or defaults.
         config_path: Path to a YAML configuration file. If ``None``, no file
@@ -100,7 +100,7 @@ def load_config(
         return yaml_data.get(key, default)
 
     root_url: str | None = _resolve('root_url')
-    if not root_url:
+    if root_url is None or root_url == '':
         raise ValueError(
             'root_url is required: provide it as a positional argument or in the config file.'
         )
@@ -155,7 +155,7 @@ def load_config(
 def _load_yaml_file(path: str) -> dict[str, Any]:
     """Load and parse a YAML config file.
 
-    Args:
+    Parameters:
         path: Filesystem path to the YAML file.
 
     Returns:
@@ -189,12 +189,12 @@ def _load_yaml_file(path: str) -> dict[str, Any]:
     return data
 
 
-def _coerce_url_list(value: Any, field: str) -> tuple[str, ...]:
+def _coerce_url_list(value: Any, field_name: str) -> tuple[str, ...]:
     """Coerce a YAML value to a tuple of strings, or raise on bad input.
 
-    Args:
+    Parameters:
         value: Raw value from YAML (expected to be a list or absent/None).
-        field: Field name used in the error message.
+        field_name: Field name used in the error message.
 
     Returns:
         Tuple of strings (empty if *value* is None).
@@ -205,16 +205,16 @@ def _coerce_url_list(value: Any, field: str) -> tuple[str, ...]:
     if value is None:
         return ()
     if not isinstance(value, list):
-        raise ValueError(f'{field} must be a list in the config file, got {type(value).__name__!r}')
+        raise ValueError(f'{field_name} must be a list in the config file, got {type(value).__name__!r}')
     return tuple(str(item) for item in value)
 
 
-def _coerce_int(value: Any, field: str) -> int:
+def _coerce_int(value: Any, field_name: str) -> int:
     """Coerce *value* to int, raising :exc:`ValueError` with a clear message on failure.
 
-    Args:
+    Parameters:
         value: The raw value to coerce.
-        field: The field name, used in the error message.
+        field_name: The field name, used in the error message.
 
     Returns:
         Integer representation of *value*.
@@ -225,7 +225,7 @@ def _coerce_int(value: Any, field: str) -> int:
     try:
         return int(value)
     except (TypeError, ValueError):
-        raise ValueError(f'{field} must be an integer, got {value!r}') from None
+        raise ValueError(f'{field_name} must be an integer, got {value!r}') from None
 
 
 def _validate(
@@ -240,7 +240,7 @@ def _validate(
 ) -> None:
     """Validate config values, raising ValueError on failure.
 
-    Args:
+    Parameters:
         timeout: Request timeout in seconds (must be > 0).
         retries: Retry count (must be >= 0).
         max_requests: Maximum HTTP requests (must be > 0 if set).

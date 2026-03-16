@@ -198,8 +198,6 @@ def test_max_redirects_exceeded() -> None:
 
 @resp_lib.activate
 def test_ssl_error_warns_once_per_domain() -> None:
-    import requests.exceptions
-
     resp_lib.add(
         resp_lib.GET,
         'https://bad-ssl.example.com/page1',

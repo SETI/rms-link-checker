@@ -48,9 +48,12 @@ def test_progress_stop_no_more_output(capfd: pytest.CaptureFixture[str]) -> None
     assert captured2.err.count('[Progress]') == 0
 
 
-def test_progress_update_values() -> None:
+def test_progress_update_values(capfd: pytest.CaptureFixture[str]) -> None:
     reporter = ProgressReporter(interval=60.0)
     reporter.update(checked=42, queued=7, active_threads=3, elapsed=90.5)
-    assert reporter._checked == 42
-    assert reporter._queued == 7
-    assert reporter._active_threads == 3
+    reporter._emit()
+    captured = capfd.readouterr()
+    assert '42/~49' in captured.err
+    assert '7 in queue' in captured.err
+    assert '3 threads active' in captured.err
+    assert '1m 30s elapsed' in captured.err

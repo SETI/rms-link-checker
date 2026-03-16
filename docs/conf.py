@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath('../src'))
 # -- Project information -----------------------------------------------------
 
 project = 'rms-link-checker'
-copyright = '2025, SETI Institute'
+copyright = '2026, SETI Institute'
 author = 'SETI Institute'
 
 # The full version, including alpha/beta/rc tags
@@ -33,9 +33,6 @@ extensions = [
     'sphinxcontrib.mermaid',
     'myst_parser',
 ]
-
-# Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.

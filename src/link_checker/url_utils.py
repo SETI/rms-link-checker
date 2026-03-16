@@ -22,7 +22,7 @@ def _strip_index_filename(path: str) -> str:
     (``index.html``, ``index.php``, etc.) it is removed so the path
     ends with ``/``.  All other paths are returned unchanged.
 
-    Args:
+    Parameters:
         path: The path component of a URL (no scheme, host, query, or
             fragment).
 
@@ -54,7 +54,7 @@ def normalize_url(url: str) -> tuple[str, str | None]:
     :func:`add_trailing_slash` to add the trailing slash when you know
     the URL refers to a directory (e.g. for internal crawl targets).
 
-    Args:
+    Parameters:
         url: The URL to normalize.
 
     Returns:
@@ -95,7 +95,7 @@ def add_trailing_slash(url: str) -> str:
     Apply after :func:`normalize_url` so that index-file stripping has
     already run (``/cassini/index.html`` → ``/cassini/`` → unchanged here).
 
-    Args:
+    Parameters:
         url: An already-normalized http/https URL.
 
     Returns:
@@ -129,7 +129,7 @@ def normalize_internal_url(url: str) -> tuple[str, str | None]:
     For external URLs use :func:`normalize_url` alone to avoid altering
     the request path in ways the server may not expect.
 
-    Args:
+    Parameters:
         url: The URL to normalize.
 
     Returns:
@@ -147,7 +147,7 @@ def is_same_domain(url: str, root_url: str) -> bool:
     Comparison is case-insensitive. Scheme is ignored. Subdomains are
     considered different domains.
 
-    Args:
+    Parameters:
         url: The URL to check.
         root_url: The reference URL whose host to compare against.
 
@@ -160,7 +160,7 @@ def is_same_domain(url: str, root_url: str) -> bool:
 def is_under_root(url_path: str, root_path: str) -> bool:
     """Return True if *url_path* is at or under *root_path* on a segment boundary.
 
-    Args:
+    Parameters:
         url_path: The path component of the URL to test.
         root_path: The root path to test containment against.
 
@@ -186,7 +186,7 @@ def matches_prefix(candidate_url: str, prefix_url: str) -> bool:
     - Path of candidate must equal path of prefix, or start with prefix path
       followed by ``/`` (segment-boundary matching).
 
-    Args:
+    Parameters:
         candidate_url: The URL to test.
         prefix_url: The prefix URL to match against.
 
@@ -212,7 +212,7 @@ def get_file_extension(url: str) -> str | None:
     Returns None for paths ending in ``/`` or having no dot in the last
     segment.
 
-    Args:
+    Parameters:
         url: The URL to inspect.
 
     Returns:
@@ -234,7 +234,7 @@ def get_file_extension(url: str) -> str | None:
 def is_html_extension(ext: str | None) -> bool:
     """Return True if *ext* indicates an HTML-like page (or no extension at all).
 
-    Args:
+    Parameters:
         ext: Lowercase file extension including leading dot, or None.
 
     Returns:
@@ -251,7 +251,7 @@ def get_depth(url_path: str, root_path: str) -> int:
     Depth 0 is the root page itself (or its trailing-slash variant).
     Each additional directory segment adds 1.
 
-    Args:
+    Parameters:
         url_path: The path to measure.
         root_path: The root path to measure from.
 
@@ -276,7 +276,7 @@ def get_depth(url_path: str, root_path: str) -> int:
 def is_http_url(url: str) -> bool:
     """Return True if *url* uses the ``http`` or ``https`` scheme.
 
-    Args:
+    Parameters:
         url: The URL string to test.
 
     Returns:

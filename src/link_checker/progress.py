@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 import threading
+from collections.abc import Callable
 
 
 class ProgressReporter:
@@ -11,17 +12,28 @@ class ProgressReporter:
 
     Updates are written approximately every *interval* seconds.
 
-    Args:
+    Parameters:
         interval: Time in seconds between progress updates.
+        output: Callable that accepts a string and writes it somewhere.
+            Defaults to printing to :data:`sys.stderr`.
     """
 
-    def __init__(self, interval: float = 5.0) -> None:
+    def __init__(
+        self,
+        interval: float = 5.0,
+        output: Callable[[str], None] | None = None,
+    ) -> None:
         """Initialise the reporter.
 
-        Args:
+        Parameters:
             interval: Seconds between automatic updates.
+            output: Optional callable for writing progress lines.  Defaults to
+                printing to :data:`sys.stderr` with flushing.
         """
         self._interval = interval
+        self._output: Callable[[str], None] = (
+            output if output is not None else lambda line: print(line, file=sys.stderr, flush=True)
+        )
         self._checked = 0
         self._queued = 0
         self._active_threads = 0
@@ -40,7 +52,7 @@ class ProgressReporter:
     ) -> None:
         """Update the current progress values.
 
-        Args:
+        Parameters:
             checked: Number of URLs checked so far.
             queued: Number of URLs currently in queue.
             active_threads: Number of active worker threads.
@@ -59,10 +71,10 @@ class ProgressReporter:
             queued = self._queued
             threads = self._active_threads
             elapsed = self._elapsed
-        self._emit_unlocked(checked, queued, threads, elapsed)
+        self._emit_unlocked(checked=checked, queued=queued, threads=threads, elapsed=elapsed)
 
     def _emit_unlocked(
-        self, checked: int, queued: int, threads: int, elapsed: float
+        self, *, checked: int, queued: int, threads: int, elapsed: float
     ) -> None:
         """Write a progress line using already-captured values (no locking)."""
         minutes = int(elapsed // 60)
@@ -76,9 +88,15 @@ class ProgressReporter:
             f' | {threads} threads active'
             f' | {minutes}m {seconds}s elapsed'
         )
-        print(line, file=sys.stderr, flush=True)
+        self._output(line)
 
     def _schedule(self) -> None:
+        """Emit one progress line and schedule the next emission.
+
+        Called by the periodic :class:`~threading.Timer`.  Re-arms the timer
+        unless :meth:`stop` has been called.  All state access is protected by
+        :attr:`_lock` to avoid races with :meth:`stop`.
+        """
         with self._lock:
             if self._stopped:
                 return
@@ -89,7 +107,7 @@ class ProgressReporter:
             self._timer = threading.Timer(self._interval, self._schedule)
             self._timer.daemon = True
             self._timer.start()
-        self._emit_unlocked(checked, queued, threads, elapsed)
+        self._emit_unlocked(checked=checked, queued=queued, threads=threads, elapsed=elapsed)
 
     def start(self) -> None:
         """Start emitting periodic progress updates."""

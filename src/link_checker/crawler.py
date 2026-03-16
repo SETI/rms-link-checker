@@ -24,16 +24,20 @@ from link_checker.http_client import HttpClient, RequestResult
 from link_checker.progress import ProgressReporter
 from link_checker.results import CrawlResults
 from link_checker.url_utils import (
-    add_trailing_slash,
     get_depth,
     get_file_extension,
     is_html_extension,
     is_http_url,
     is_same_domain,
+    normalize_internal_url,
     normalize_url,
 )
 
 logger = logging.getLogger('link_checker')
+
+_FALLBACK_VERSION = '0.0.0'
+_POLL_INTERVAL = 0.01
+_FUTURES_TIMEOUT = 5.0
 
 
 @dataclass
@@ -58,7 +62,7 @@ class Crawler:
     concurrently. Enforces visit-once semantics, depth limits, and all other
     spec 5-9 rules.
 
-    Args:
+    Parameters:
         config: Crawl configuration.
         progress: Optional progress reporter to update during the crawl.
         sleep: Callable used for inter-retry pauses inside the HTTP client.
@@ -74,7 +78,7 @@ class Crawler:
     ) -> None:
         """Initialise the crawler.
 
-        Args:
+        Parameters:
             config: Crawl configuration to use.
             progress: Optional :class:`~link_checker.progress.ProgressReporter` to call
                 during the crawl.
@@ -83,14 +87,13 @@ class Crawler:
         """
         self._config = config
         self._progress = progress
-        self._root_url, _ = normalize_url(config.root_url)
-        self._root_url = add_trailing_slash(self._root_url)
+        self._root_url, _ = normalize_internal_url(config.root_url)
         self._root_path = urlparse(self._root_url).path
 
         try:
             version = importlib.metadata.version('rms-link-checker')
         except importlib.metadata.PackageNotFoundError:
-            version = '0.0.0'
+            version = _FALLBACK_VERSION
 
         _sleep = sleep if sleep is not None else _time_module.sleep
         self._http = HttpClient(
@@ -161,10 +164,10 @@ class Crawler:
 
                 if not futures_map:
                     # In-flight workers may still enqueue new items; wait briefly.
-                    _time_module.sleep(0.01)
+                    _time_module.sleep(_POLL_INTERVAL)
                     continue
                 done_set, _ = wait(
-                    list(futures_map), timeout=5.0, return_when=FIRST_COMPLETED
+                    list(futures_map), timeout=_FUTURES_TIMEOUT, return_when=FIRST_COMPLETED
                 )
 
                 if self._progress is not None:
@@ -186,8 +189,8 @@ class Crawler:
                     del futures_map[fut]
                     try:
                         fut.result()
-                    except Exception as exc:
-                        logger.error('Unhandled exception in worker: %s', exc)
+                    except Exception:
+                        logger.exception('Unhandled exception in worker')
 
         logger.debug(
             'Crawl finished: %d requests in %.1fs',
@@ -226,7 +229,7 @@ class Crawler:
         track *canonical* receive the new referrer so reports show every
         page that links to a broken/redirecting/etc. URL.
 
-        Args:
+        Parameters:
             canonical: Normalised URL whose existing result to update.
             referrer: Page that contained the link to *canonical*.
         """
@@ -244,7 +247,7 @@ class Crawler:
         Classifies the URL, issues the appropriate HTTP request, and enqueues
         newly discovered links.
 
-        Args:
+        Parameters:
             item: The work item to process.
             work_queue: Queue to add newly discovered URLs to.
         """
@@ -272,7 +275,7 @@ class Crawler:
 
         canonical, _ = normalize_url(url_no_frag)
         if is_same_domain(canonical, self._root_url):
-            canonical = add_trailing_slash(canonical)
+            canonical, _ = normalize_internal_url(url_no_frag)
 
         with self._visited_lock:
             already = canonical in self._visited
@@ -281,7 +284,12 @@ class Crawler:
             self._merge_referrer(canonical, referrer)
             if fragment:
                 logger.debug('Already visited %s; validating anchor #%s', canonical, fragment)
-                self._validate_anchor(canonical, fragment, url_no_frag + '#' + fragment, referrer)
+                self._validate_anchor(
+                    page_url=canonical,
+                    fragment=fragment,
+                    full_url=url_no_frag + '#' + fragment,
+                    referrer=referrer,
+                )
             else:
                 logger.debug('Already visited %s; skipping', canonical)
             return
@@ -316,7 +324,12 @@ class Crawler:
         if not self._mark_visited(canonical):
             self._merge_referrer(canonical, referrer)
             if fragment:
-                self._validate_anchor(canonical, fragment, url_no_frag + '#' + fragment, referrer)
+                self._validate_anchor(
+                    page_url=canonical,
+                    fragment=fragment,
+                    full_url=url_no_frag + '#' + fragment,
+                    referrer=referrer,
+                )
             return
 
         if not self._increment_request_count():
@@ -324,7 +337,13 @@ class Crawler:
             return
 
         if disposition == UrlDisposition.INTERNAL_CRAWL:
-            self._handle_internal_crawl(canonical, referrer, depth, fragment, work_queue)
+            self._handle_internal_crawl(
+                url=canonical,
+                referrer=referrer,
+                depth=depth,
+                fragment=fragment,
+                work_queue=work_queue,
+            )
         elif disposition == UrlDisposition.INTERNAL_ASSET:
             self._handle_asset(canonical, referrer)
         elif disposition == UrlDisposition.NO_CRAWL:
@@ -348,13 +367,25 @@ class Crawler:
 
     def _handle_internal_crawl(
         self,
+        *,
         url: str,
         referrer: str,
         depth: int,
         fragment: str | None,
         work_queue: queue.Queue[_WorkItem],
     ) -> None:
-        logger.debug('Crawling internal page GET %s (depth=%d)', url, depth)
+        """Fetch and parse an internal HTML page, enqueue discovered links.
+
+        Issues a GET request for *url*, records the result, extracts all links
+        and anchors, and adds newly discovered URLs to *work_queue*.
+
+        Parameters:
+            url: Canonical URL of the internal page to crawl.
+            referrer: Page that linked to this URL.
+            depth: Directory depth of this page relative to the crawl root.
+            fragment: Fragment identifier from the original link, if any.
+            work_queue: Queue to push newly discovered work items onto.
+        """
         result = self._http.request(url, method='GET')
         logger.debug(
             'Response %s → %d (%d bytes)',
@@ -376,7 +407,12 @@ class Crawler:
             self._anchor_registry[url] = anchors
 
         if fragment:
-            self._validate_anchor(url, fragment, url + '#' + fragment, referrer)
+            self._validate_anchor(
+                page_url=url,
+                fragment=fragment,
+                full_url=url + '#' + fragment,
+                referrer=referrer,
+            )
 
         links = extract_links(result.body, result.final_url)
         logger.debug('Found %d links on %s', len(links), url)
@@ -411,6 +447,12 @@ class Crawler:
                 self._results.add_misplaced_asset(link_canonical, asset_type.value, url)
 
     def _handle_asset(self, url: str, referrer: str) -> None:
+        """Issue a HEAD request for an internal asset and record the result.
+
+        Parameters:
+            url: Canonical URL of the internal asset.
+            referrer: Page that referenced this asset.
+        """
         logger.debug('Checking internal asset HEAD %s', url)
         result = self._http.request(url, method='HEAD')
         logger.debug('Response %s → %d', url, result.status_code)
@@ -425,15 +467,29 @@ class Crawler:
         *,
         is_external: bool,
     ) -> None:
-        if result.error and not result.status_code:
+        """Classify a completed HTTP result and store it in :attr:`_results`.
+
+        Handles network errors, SSL errors, redirects, HTTP 4xx/5xx errors,
+        and non-200 responses — each goes into the appropriate result bucket.
+
+        Parameters:
+            result: The completed HTTP request result.
+            url: Canonical URL that was requested.
+            referrer: Page that linked to *url*.
+            is_external: Whether the URL is on a different domain.
+        """
+        if result.error and result.status_code == 0:
             domain = urlparse(url).netloc
             if domain in self._http.ssl_warned_domains:
                 logger.debug('SSL error %s: %s', url, result.error)
-                self._results.add_ssl_warning(url, domain, result.error, referrer)
+                self._results.add_ssl_warning(
+                    url=url, domain=domain, error=result.error, referrer=referrer
+                )
             else:
                 logger.debug('Network error %s: %s', url, result.error)
-                self._results.add_broken_link(url, 0, result.error, referrer)
-                self._results.add_non200(url, 0, referrer)
+                self._results.add_broken_link(
+                    url=url, status_code=0, error=result.error, referrer=referrer
+                )
             return
 
         if result.redirect_chain:
@@ -441,20 +497,35 @@ class Crawler:
             if url != final_canonical:
                 redirect_status = result.redirect_chain[0].status_code
                 logger.debug('Redirect %s → %s (%d)', url, result.final_url, redirect_status)
-                self._results.add_redirect(url, result.final_url, redirect_status, referrer)
+                self._results.add_redirect(
+                    original_url=url,
+                    final_url=result.final_url,
+                    status_code=redirect_status,
+                    referrer=referrer,
+                )
 
         if result.error:
             domain = urlparse(url).netloc
             if domain in self._http.ssl_warned_domains:
                 logger.debug('SSL error %s: %s', url, result.error)
-                self._results.add_ssl_warning(url, domain, result.error, referrer)
+                self._results.add_ssl_warning(
+                    url=url, domain=domain, error=result.error, referrer=referrer
+                )
             else:
                 logger.debug('Error %s: %s', url, result.error)
-                self._results.add_broken_link(url, result.status_code, result.error, referrer)
+                self._results.add_broken_link(
+                    url=url,
+                    status_code=result.status_code,
+                    error=result.error,
+                    referrer=referrer,
+                )
         elif result.status_code >= 400:
             logger.debug('Broken link %s status=%d', url, result.status_code)
             self._results.add_broken_link(
-                url, result.status_code, f'{result.status_code}', referrer
+                url=url,
+                status_code=result.status_code,
+                error=f'{result.status_code}',
+                referrer=referrer,
             )
 
         if result.status_code != 200 and result.status_code != 0:
@@ -462,11 +533,24 @@ class Crawler:
 
     def _validate_anchor(
         self,
+        *,
         page_url: str,
         fragment: str,
         full_url: str,
         referrer: str,
     ) -> None:
+        """Check whether *fragment* exists as an anchor on *page_url*.
+
+        Records a broken anchor if the fragment is absent.  If the page's
+        anchors are not yet in :attr:`_anchor_registry` (e.g. it was not
+        crawled), the check is silently skipped.
+
+        Parameters:
+            page_url: Canonical URL of the page that should define the anchor.
+            fragment: Fragment identifier to look up (without the ``#``).
+            full_url: Original URL including the fragment, used in reports.
+            referrer: Page that contained the link with the fragment.
+        """
         with self._anchor_lock:
             anchors = self._anchor_registry.get(page_url)
         if anchors is not None:

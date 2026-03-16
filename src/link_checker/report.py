@@ -9,7 +9,6 @@ from collections import defaultdict
 from link_checker.config import CrawlConfig
 from link_checker.results import CrawlResults
 
-
 _BYTES_PER_MB = 1024 * 1024
 
 

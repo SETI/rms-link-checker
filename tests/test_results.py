@@ -9,28 +9,58 @@ from link_checker.results import CrawlResults
 
 def test_add_broken_link_records_url() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/')
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/',
+    )
     assert len(r.broken_links) == 1
     assert r.broken_links[0].url == 'https://example.com/missing'
 
 
 def test_add_broken_link_records_referrer() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/')
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/',
+    )
     assert 'https://example.com/' in r.broken_links[0].referencing_pages
 
 
 def test_add_broken_link_multiple_referrers() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/a')
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/b')
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/a',
+    )
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/b',
+    )
     assert len(r.broken_links[0].referencing_pages) == 2
 
 
 def test_add_broken_link_no_duplicate_referrers() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/')
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/')
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/',
+    )
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/',
+    )
     assert len(r.broken_links[0].referencing_pages) == 1
 
 
@@ -130,7 +160,12 @@ def test_has_problems_false_when_clean() -> None:
 
 def test_has_problems_true_with_broken_link() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/missing', status_code=404, error='Not Found', referrer='https://example.com/')
+    r.add_broken_link(
+        url='https://example.com/missing',
+        status_code=404,
+        error='Not Found',
+        referrer='https://example.com/',
+    )
     assert r.has_problems() is True
 
 
@@ -208,7 +243,12 @@ def test_non200_records() -> None:
 
 def test_merge_referrer_broken_link() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/gone', status_code=404, error='404', referrer='https://example.com/page1')
+    r.add_broken_link(
+        url='https://example.com/gone',
+        status_code=404,
+        error='404',
+        referrer='https://example.com/page1',
+    )
     r.merge_referrer('https://example.com/gone', 'https://example.com/page2')
     entry = r.broken_links[0]
     assert sorted(entry.referencing_pages) == [
@@ -244,7 +284,12 @@ def test_merge_referrer_no_op_for_unknown_url() -> None:
 def test_merge_referrer_deduplicates_referrer() -> None:
     """Calling merge_referrer twice with the same referrer must not duplicate it."""
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/gone', status_code=404, error='404', referrer='https://example.com/page1')
+    r.add_broken_link(
+        url='https://example.com/gone',
+        status_code=404,
+        error='404',
+        referrer='https://example.com/page1',
+    )
     r.merge_referrer('https://example.com/gone', 'https://example.com/page1')
     assert r.broken_links[0].referencing_pages == ['https://example.com/page1']
 
@@ -252,11 +297,26 @@ def test_merge_referrer_deduplicates_referrer() -> None:
 def test_accessors_return_snapshots_not_live_objects() -> None:
     """Mutating objects returned by accessors must not affect internal state."""
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/gone', status_code=404, error='404', referrer='https://example.com/ref1')
-    r.add_redirect(original_url='https://example.com/old', final_url='https://example.com/new', status_code=301, referrer='https://example.com/ref1')
+    r.add_broken_link(
+        url='https://example.com/gone',
+        status_code=404,
+        error='404',
+        referrer='https://example.com/ref1',
+    )
+    r.add_redirect(
+        original_url='https://example.com/old',
+        final_url='https://example.com/new',
+        status_code=301,
+        referrer='https://example.com/ref1',
+    )
     r.add_broken_anchor('https://example.com/page#missing', 'https://example.com/ref1')
     r.add_non200('https://example.com/gone', 404, 'https://example.com/ref1')
-    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='SSL fail', referrer='https://example.com/ref1')
+    r.add_ssl_warning(
+        url='https://bad.example.com/x',
+        domain='bad.example.com',
+        error='SSL fail',
+        referrer='https://example.com/ref1',
+    )
 
     # Mutate every returned snapshot.
     r.broken_links[0].referencing_pages.append('INJECTED')
@@ -280,21 +340,30 @@ def test_accessors_return_snapshots_not_live_objects() -> None:
 
 def test_merge_referrer_empty_referrer_is_no_op() -> None:
     r = CrawlResults()
-    r.add_broken_link(url='https://example.com/gone', status_code=404, error='404', referrer='https://example.com/ref1')
+    r.add_broken_link(
+        url='https://example.com/gone',
+        status_code=404,
+        error='404',
+        referrer='https://example.com/ref1',
+    )
     r.merge_referrer('https://example.com/gone', '')
     assert r.broken_links[0].referencing_pages == ['https://example.com/ref1']
 
 
 def test_merge_referrer_ssl_warning_path() -> None:
     r = CrawlResults()
-    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='SSL fail', referrer='ref1')
+    r.add_ssl_warning(
+        url='https://bad.example.com/x', domain='bad.example.com', error='SSL fail', referrer='ref1'
+    )
     r.merge_referrer('https://bad.example.com/x', 'ref2')
     assert sorted(r.ssl_warnings[0].affected_urls[0][1]) == ['ref1', 'ref2']
 
 
 def test_merge_referrer_ssl_warning_deduplicates() -> None:
     r = CrawlResults()
-    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='SSL fail', referrer='ref1')
+    r.add_ssl_warning(
+        url='https://bad.example.com/x', domain='bad.example.com', error='SSL fail', referrer='ref1'
+    )
     r.merge_referrer('https://bad.example.com/x', 'ref1')
     assert r.ssl_warnings[0].affected_urls[0][1] == ['ref1']
 
@@ -303,7 +372,12 @@ def test_merge_referrer_pending_then_ssl_warning_drains() -> None:
     """Pending referrer queued before ssl_warning entry must be drained into it."""
     r = CrawlResults()
     r.merge_referrer('https://bad.example.com/x', 'pending-ref')
-    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='SSL fail', referrer='direct-ref')
+    r.add_ssl_warning(
+        url='https://bad.example.com/x',
+        domain='bad.example.com',
+        error='SSL fail',
+        referrer='direct-ref',
+    )
     refs = r.ssl_warnings[0].affected_urls[0][1]
     assert 'pending-ref' in refs
     assert 'direct-ref' in refs
@@ -317,7 +391,12 @@ def test_merge_referrer_pending_then_ssl_warning_drains() -> None:
 def test_pending_referrer_drained_into_redirect() -> None:
     r = CrawlResults()
     r.merge_referrer('https://example.com/old', 'pending-ref')
-    r.add_redirect(original_url='https://example.com/old', final_url='https://example.com/new', status_code=301, referrer='direct-ref')
+    r.add_redirect(
+        original_url='https://example.com/old',
+        final_url='https://example.com/new',
+        status_code=301,
+        referrer='direct-ref',
+    )
     entry = r.redirects[0]
     assert 'pending-ref' in entry.referencing_pages
     assert 'direct-ref' in entry.referencing_pages
@@ -377,7 +456,11 @@ def test_record_request_no_domain_does_not_crash() -> None:
 
 def test_add_ssl_warning_second_referrer_to_existing_url() -> None:
     r = CrawlResults()
-    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref1')
-    r.add_ssl_warning(url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref2')
+    r.add_ssl_warning(
+        url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref1'
+    )
+    r.add_ssl_warning(
+        url='https://bad.example.com/x', domain='bad.example.com', error='err', referrer='ref2'
+    )
     refs = r.ssl_warnings[0].affected_urls[0][1]
     assert sorted(refs) == ['ref1', 'ref2']

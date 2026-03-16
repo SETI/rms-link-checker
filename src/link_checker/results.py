@@ -292,8 +292,10 @@ class CrawlResults:
         """List of broken links sorted by URL."""
         with self._lock:
             return sorted(
-                (replace(b, referencing_pages=list(b.referencing_pages))
-                 for b in self._broken_links.values()),
+                (
+                    replace(b, referencing_pages=list(b.referencing_pages))
+                    for b in self._broken_links.values()
+                ),
                 key=lambda b: b.url,
             )
 
@@ -335,8 +337,10 @@ class CrawlResults:
         """List of redirects sorted by original URL."""
         with self._lock:
             return sorted(
-                (replace(r, referencing_pages=list(r.referencing_pages))
-                 for r in self._redirects.values()),
+                (
+                    replace(r, referencing_pages=list(r.referencing_pages))
+                    for r in self._redirects.values()
+                ),
                 key=lambda r: r.original_url,
             )
 
@@ -362,8 +366,10 @@ class CrawlResults:
         """List of broken anchors sorted by target URL."""
         with self._lock:
             return sorted(
-                (replace(a, referencing_pages=list(a.referencing_pages))
-                 for a in self._broken_anchors.values()),
+                (
+                    replace(a, referencing_pages=list(a.referencing_pages))
+                    for a in self._broken_anchors.values()
+                ),
                 key=lambda a: a.target_url,
             )
 
@@ -393,8 +399,10 @@ class CrawlResults:
         """List of unvalidated anchors sorted by target URL."""
         with self._lock:
             return sorted(
-                (replace(a, referencing_pages=list(a.referencing_pages))
-                 for a in self._unvalidated_anchors.values()),
+                (
+                    replace(a, referencing_pages=list(a.referencing_pages))
+                    for a in self._unvalidated_anchors.values()
+                ),
                 key=lambda a: a.target_url,
             )
 
@@ -424,8 +432,10 @@ class CrawlResults:
         """List of non-200 responses sorted by status code then URL."""
         with self._lock:
             return sorted(
-                (replace(r, referencing_pages=list(r.referencing_pages))
-                 for r in self._non200.values()),
+                (
+                    replace(r, referencing_pages=list(r.referencing_pages))
+                    for r in self._non200.values()
+                ),
                 key=lambda r: (r.status_code, r.url),
             )
 
@@ -455,8 +465,10 @@ class CrawlResults:
         """List of misplaced assets sorted by asset type then URL."""
         with self._lock:
             return sorted(
-                (replace(a, referencing_pages=list(a.referencing_pages))
-                 for a in self._misplaced_assets.values()),
+                (
+                    replace(a, referencing_pages=list(a.referencing_pages))
+                    for a in self._misplaced_assets.values()
+                ),
                 key=lambda a: (a.asset_type, a.url),
             )
 
@@ -531,8 +543,10 @@ class CrawlResults:
         """List of non-HTTP scheme links sorted by URL."""
         with self._lock:
             return sorted(
-                (replace(lk, referencing_pages=list(lk.referencing_pages))
-                 for lk in self._non_http_links.values()),
+                (
+                    replace(lk, referencing_pages=list(lk.referencing_pages))
+                    for lk in self._non_http_links.values()
+                ),
                 key=lambda lk: lk.url,
             )
 
@@ -561,8 +575,10 @@ class CrawlResults:
         """List of ignore matches sorted by URL."""
         with self._lock:
             return sorted(
-                (replace(m, referencing_pages=list(m.referencing_pages))
-                 for m in self._ignore_matches.values()),
+                (
+                    replace(m, referencing_pages=list(m.referencing_pages))
+                    for m in self._ignore_matches.values()
+                ),
                 key=lambda m: m.url,
             )
 
@@ -591,8 +607,10 @@ class CrawlResults:
         """List of no-crawl matches sorted by URL."""
         with self._lock:
             return sorted(
-                (replace(m, referencing_pages=list(m.referencing_pages))
-                 for m in self._no_crawl_matches.values()),
+                (
+                    replace(m, referencing_pages=list(m.referencing_pages))
+                    for m in self._no_crawl_matches.values()
+                ),
                 key=lambda m: m.url,
             )
 

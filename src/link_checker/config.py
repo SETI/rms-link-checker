@@ -205,7 +205,9 @@ def _coerce_url_list(value: Any, field_name: str) -> tuple[str, ...]:
     if value is None:
         return ()
     if not isinstance(value, list):
-        raise ValueError(f'{field_name} must be a list in the config file, got {type(value).__name__!r}')
+        raise ValueError(
+            f'{field_name} must be a list in the config file, got {type(value).__name__!r}'
+        )
     return tuple(str(item) for item in value)
 
 

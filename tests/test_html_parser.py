@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from link_checker.html_parser import ExtractedLink, extract_anchors, extract_links, find_base_href
 
-
 # ---------------------------------------------------------------------------
 # extract_links
 # ---------------------------------------------------------------------------
@@ -239,6 +238,7 @@ def test_extract_links_srcset_with_descriptors() -> None:
 def test_parse_srcset_trailing_comma_ignored() -> None:
     """A srcset entry that is only whitespace/comma must not produce a URL."""
     from link_checker.html_parser import _parse_srcset
+
     result = _parse_srcset('  ,  ')
     assert result == []
 
@@ -246,6 +246,7 @@ def test_parse_srcset_trailing_comma_ignored() -> None:
 def test_extract_anchors_skips_non_tag_nodes() -> None:
     """extract_anchors must return an empty set when no real anchor tags exist."""
     from link_checker.html_parser import extract_anchors
+
     # Plain text with no tags at all.
     result = extract_anchors('just plain text')
     assert result == frozenset()
@@ -254,8 +255,8 @@ def test_extract_anchors_skips_non_tag_nodes() -> None:
 def test_extract_anchors_id_and_name() -> None:
     """Both id= attributes and <a name=> attributes must be captured."""
     from link_checker.html_parser import extract_anchors
+
     html = '<h2 id="section1">Title</h2><a name="legacy">anchor</a>'
     result = extract_anchors(html)
     assert 'section1' in result
     assert 'legacy' in result
-

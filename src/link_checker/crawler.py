@@ -437,11 +437,15 @@ class Crawler:
             )
 
             ext = get_file_extension(link_canonical)
-            if ext and not is_html_extension(ext) and is_misplaced_asset(
-                link_canonical,
-                config=self._config,
-                root_url=self._root_url,
-                root_path=self._root_path,
+            if (
+                ext
+                and not is_html_extension(ext)
+                and is_misplaced_asset(
+                    link_canonical,
+                    config=self._config,
+                    root_url=self._root_url,
+                    root_path=self._root_path,
+                )
             ):
                 asset_type = classify_asset(ext)
                 self._results.add_misplaced_asset(link_canonical, asset_type.value, url)

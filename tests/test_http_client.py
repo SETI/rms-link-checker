@@ -271,9 +271,7 @@ def test_verify_false_passed_to_request() -> None:
         return (200, {}, '')
 
     resp_lib.add_callback(resp_lib.GET, 'https://example.com/page', callback)
-    client = HttpClient(
-        timeout=10, retries=0, user_agent='test', verify=False
-    )
+    client = HttpClient(timeout=10, retries=0, user_agent='test', verify=False)
     with patch.object(
         client._session,
         'request',

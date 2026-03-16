@@ -10,9 +10,7 @@ HTML_EXTENSIONS: frozenset[str] = frozenset(
 
 # Index filenames that are equivalent to the parent directory URL.
 # e.g. /cassini/index.html → /cassini/
-_INDEX_FILENAMES: frozenset[str] = frozenset(
-    {'index' + ext for ext in HTML_EXTENSIONS}
-)
+_INDEX_FILENAMES: frozenset[str] = frozenset({'index' + ext for ext in HTML_EXTENSIONS})
 
 
 def _strip_index_filename(path: str) -> str:
@@ -108,9 +106,7 @@ def add_trailing_slash(url: str) -> str:
         dot_idx = last_segment.rfind('.')
         if dot_idx <= 0:
             path = path + '/'
-            url = urlunparse(
-                (parsed.scheme, parsed.netloc, path, parsed.params, parsed.query, '')
-            )
+            url = urlunparse((parsed.scheme, parsed.netloc, path, parsed.params, parsed.query, ''))
     return url
 
 

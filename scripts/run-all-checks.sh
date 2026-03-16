@@ -239,7 +239,7 @@ run_code_checks() {
         print_success "Mypy passed"
     fi
 
-    if ! python -m pytest tests -q; then
+    if ! python -m pytest tests -q -n auto --cov=src/; then
         print_error "Pytest failed"
         failed=true
         failed_checks="${failed_checks}Code - Pytest"$'\n'

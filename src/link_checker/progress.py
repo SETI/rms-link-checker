@@ -73,9 +73,7 @@ class ProgressReporter:
             elapsed = self._elapsed
         self._emit_unlocked(checked=checked, queued=queued, threads=threads, elapsed=elapsed)
 
-    def _emit_unlocked(
-        self, *, checked: int, queued: int, threads: int, elapsed: float
-    ) -> None:
+    def _emit_unlocked(self, *, checked: int, queued: int, threads: int, elapsed: float) -> None:
         """Write a progress line using already-captured values (no locking)."""
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)

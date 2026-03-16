@@ -325,7 +325,9 @@ def test_url_list_null_treated_as_empty(tmp_path: Path, field: str) -> None:
     assert getattr(cfg, field) == ()
 
 
-@pytest.mark.parametrize('value', ['debug', 'Debug', 'WARNING', 'warning', 'Error', 'critical', 'INFO'])
+@pytest.mark.parametrize(
+    'value', ['debug', 'Debug', 'WARNING', 'warning', 'Error', 'critical', 'INFO']
+)
 def test_log_level_case_insensitive(value: str) -> None:
     ns = _minimal_namespace(root_url='https://example.com', log_level=value)
     cfg = load_config(ns)

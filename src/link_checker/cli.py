@@ -174,4 +174,8 @@ def main() -> None:
     else:
         print(report, end='')
 
-    sys.exit(_EXIT_INTERRUPTED if interrupted else (_EXIT_PROBLEMS if results.has_problems() else _EXIT_OK))
+    sys.exit(
+        _EXIT_INTERRUPTED
+        if interrupted
+        else (_EXIT_PROBLEMS if results.has_problems() else _EXIT_OK)
+    )

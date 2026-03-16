@@ -13,8 +13,13 @@ from link_checker.config import CrawlConfig, load_config
 from link_checker.crawler import Crawler
 from link_checker.results import CrawlResults
 
+
 # Disable inter-retry sleeps for all crawler tests so they run fast.
-_NO_SLEEP: Callable[[float], None] = lambda _: None
+def _no_sleep(_: float) -> None:
+    pass
+
+
+_NO_SLEEP: Callable[[float], None] = _no_sleep
 
 
 def _cfg(**kwargs: object) -> CrawlConfig:
@@ -955,4 +960,3 @@ def test_already_visited_redirect_accumulates_referrers() -> None:
         'https://example.com/docs/page1.html',
         'https://example.com/docs/page2.html',
     ]
-

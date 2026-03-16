@@ -85,6 +85,10 @@ myst_enable_extensions = [
     'deflist',
 ]
 
+# Suppress missing cross-reference warnings for repo-root files that are not
+# part of the Sphinx source tree (e.g. CODE_OF_CONDUCT.md).
+suppress_warnings = ['myst.xref_missing']
+
 # Mermaid settings
 mermaid_output_format = 'svg'
 mermaid_d3_zoom = True

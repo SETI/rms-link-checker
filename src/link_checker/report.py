@@ -69,6 +69,9 @@ def _section_config_summary(config: CrawlConfig) -> str:
     if config.output is not None:
         lines.append(f'Output file:     {config.output}')
 
+    if config.ignore_http_to_https_redirects:
+        lines.append('Ignore http→https redirects: yes')
+
     if config.asset_urls:
         lines.append('')
         lines.append('Asset URL prefixes:')
@@ -245,6 +248,7 @@ def _section_non200_responses(results: CrawlResults, config: CrawlConfig) -> str
         lines.append('')
         lines.append(f'{status} {reason}:')
         for url, refs in sorted(by_status[status], key=lambda x: x[0]):
+            lines.append('')
             lines.append(f'  - {url}')
             lines.append('    Referenced by:')
             for page in _truncated_pages(refs, config.max_referencing_pages):
@@ -271,7 +275,10 @@ def _section_redirects(results: CrawlResults, config: CrawlConfig) -> str:
         Formatted section string.
     """
     items = results.redirects
-    lines = [f'=== Redirects ({len(items)}) ===']
+    header = f'=== Redirects ({len(items)}) ==='
+    if config.ignore_http_to_https_redirects:
+        header += '  [http→https upgrades suppressed]'
+    lines = [header]
     for r in items:
         lines.append('')
         lines.append(f'{r.original_url}  →  {r.final_url} ({r.status_code})')

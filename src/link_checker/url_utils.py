@@ -283,3 +283,29 @@ def is_http_url(url: str) -> bool:
         True for HTTP/HTTPS URLs, False for everything else.
     """
     return urlparse(url).scheme in ('http', 'https')
+
+
+def is_http_to_https_redirect(original_url: str, final_url: str) -> bool:
+    """Return True if *original_url* and *final_url* differ only in scheme upgrade.
+
+    A pure HTTP-to-HTTPS redirect is one where the original URL uses ``http``
+    and the final URL uses ``https``, with the same host (case-insensitive),
+    path, and query string.  Any other difference (different host, path, query,
+    or port) returns False.
+
+    Parameters:
+        original_url: The URL before the redirect.
+        final_url: The URL after the redirect.
+
+    Returns:
+        True if the redirect is a simple HTTP-to-HTTPS scheme upgrade.
+    """
+    orig = urlparse(original_url)
+    final = urlparse(final_url)
+    return (
+        orig.scheme == 'http'
+        and final.scheme == 'https'
+        and orig.netloc.lower() == final.netloc.lower()
+        and orig.path == final.path
+        and orig.query == final.query
+    )

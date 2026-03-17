@@ -20,6 +20,7 @@ YAML Schema
    log_level: "debug"        # case-insensitive
    output: "report.txt"
    log_file: "crawl.log"
+   ignore_http_to_https_redirects: true
 
    # --- URL classification lists (all optional) ---
    asset_urls:
@@ -38,6 +39,29 @@ YAML Schema
    all unknown keys and the complete set of valid key names. This catches
    typos such as ``non_crawl_urls`` instead of ``no_crawl_urls`` at startup
    rather than silently ignoring the setting.
+
+HTTP-to-HTTPS Redirect Filtering
+--------------------------------
+
+``ignore_http_to_https_redirects``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When set to ``true``, any redirect where the **only** difference between the
+original URL and the final URL is a scheme upgrade from ``http`` to ``https``
+(same host, path, and query) is **silently omitted** from the Redirects section
+of the report.
+
+This is useful when your site has been fully migrated to HTTPS but some pages
+still contain ``http://`` links: those links trigger a redirect but are otherwise
+harmless and need not be actioned.
+
+**CLI equivalent:** ``--ignore-http-to-https-redirects``
+
+.. note::
+
+   Only *pure* scheme upgrades are suppressed.  A redirect from
+   ``http://example.com/old`` → ``https://example.com/new`` (path differs)
+   is still reported.
 
 URL Classification Lists
 ------------------------

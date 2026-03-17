@@ -442,3 +442,54 @@ def test_url_list_non_string_item_raises(tmp_path: Path, field: str) -> None:
     ns = _minimal_namespace()
     with pytest.raises(ValueError, match=rf'{field}\[1\] must be a string'):
         load_config(ns, config_path=str(yaml_file))
+
+
+# ---------------------------------------------------------------------------
+# ignore_http_to_https_redirects field: default, YAML, CLI, _coerce_bool
+# ---------------------------------------------------------------------------
+
+
+def test_default_ignore_http_to_https_redirects_is_false() -> None:
+    ns = _minimal_namespace(root_url='https://example.com')
+    cfg = load_config(ns)
+    assert cfg.ignore_http_to_https_redirects is False
+
+
+def test_ignore_http_to_https_redirects_from_cli_flag() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', ignore_http_to_https_redirects=True)
+    cfg = load_config(ns)
+    assert cfg.ignore_http_to_https_redirects is True
+
+
+def test_ignore_http_to_https_redirects_false_from_cli() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', ignore_http_to_https_redirects=False)
+    cfg = load_config(ns)
+    assert cfg.ignore_http_to_https_redirects is False
+
+
+def test_ignore_http_to_https_redirects_true_from_yaml(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text('root_url: "https://example.com"\nignore_http_to_https_redirects: true\n')
+    ns = _minimal_namespace()
+    cfg = load_config(ns, config_path=str(yaml_file))
+    assert cfg.ignore_http_to_https_redirects is True
+
+
+def test_ignore_http_to_https_redirects_false_from_yaml(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text('root_url: "https://example.com"\nignore_http_to_https_redirects: false\n')
+    ns = _minimal_namespace()
+    cfg = load_config(ns, config_path=str(yaml_file))
+    assert cfg.ignore_http_to_https_redirects is False
+
+
+def test_ignore_http_to_https_redirects_invalid_type_raises() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', ignore_http_to_https_redirects=42)
+    with pytest.raises(ValueError, match='ignore_http_to_https_redirects must be true or false'):
+        load_config(ns)
+
+
+def test_ignore_http_to_https_redirects_invalid_string_raises() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', ignore_http_to_https_redirects='yes')
+    with pytest.raises(ValueError, match='ignore_http_to_https_redirects must be true or false'):
+        load_config(ns)

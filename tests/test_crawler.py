@@ -223,6 +223,71 @@ def test_redirect_not_recorded_when_urls_are_identical_after_normalization() -> 
     assert 'https://example.com/docs/page.html' not in redirect_originals
 
 
+@resp_lib.activate
+def test_http_to_https_redirect_recorded_by_default() -> None:
+    """By default http→https upgrades appear in the Redirects section."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/',
+        body='<html><body><a href="http://example.com/docs/page.html">link</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'http://example.com/docs/page.html',
+        status=301,
+        headers={'Location': 'https://example.com/docs/page.html'},
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
+    cfg = _cfg()
+    results = _crawl(cfg)
+    redirect_originals = [r.original_url for r in results.redirects]
+    assert 'http://example.com/docs/page.html' in redirect_originals
+
+
+@resp_lib.activate
+def test_http_to_https_redirect_suppressed_when_option_set() -> None:
+    """With ignore_http_to_https_redirects=True, pure scheme upgrades are dropped."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/',
+        body='<html><body><a href="http://example.com/docs/page.html">link</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'http://example.com/docs/page.html',
+        status=301,
+        headers={'Location': 'https://example.com/docs/page.html'},
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/page.html', body='<html/>', status=200)
+    cfg = _cfg_with(ignore_http_to_https_redirects=True)
+    results = _crawl(cfg)
+    assert not results.redirects
+
+
+@resp_lib.activate
+def test_http_to_https_redirect_with_path_change_not_suppressed() -> None:
+    """A redirect that changes both scheme and path is not suppressed."""
+    resp_lib.add(
+        resp_lib.GET,
+        'https://example.com/docs/',
+        body='<html><body><a href="http://example.com/docs/old.html">link</a></body></html>',
+        status=200,
+    )
+    resp_lib.add(
+        resp_lib.GET,
+        'http://example.com/docs/old.html',
+        status=301,
+        headers={'Location': 'https://example.com/docs/new.html'},
+    )
+    resp_lib.add(resp_lib.GET, 'https://example.com/docs/new.html', body='<html/>', status=200)
+    cfg = _cfg_with(ignore_http_to_https_redirects=True)
+    results = _crawl(cfg)
+    redirect_originals = [r.original_url for r in results.redirects]
+    assert 'http://example.com/docs/old.html' in redirect_originals
+
+
 # ---------------------------------------------------------------------------
 # Fragment validation
 # ---------------------------------------------------------------------------

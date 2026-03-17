@@ -27,6 +27,7 @@ _KNOWN_YAML_KEYS: frozenset[str] = frozenset(
         'no_crawl_urls',
         'ignore_urls',
         'verify',
+        'ignore_http_to_https_redirects',
     }
 )
 
@@ -52,6 +53,10 @@ class CrawlConfig:
         verify: TLS certificate verification.  ``True`` (default) uses the
             system CA bundle; ``False`` disables verification (insecure);
             a string is treated as a path to a CA-bundle file.
+        ignore_http_to_https_redirects: When ``True``, redirects where only
+            the scheme changes from ``http`` to ``https`` (same host, path,
+            and query) are silently dropped from the Redirects section of the
+            report.  Defaults to ``False``.
     """
 
     root_url: str
@@ -68,6 +73,7 @@ class CrawlConfig:
     no_crawl_urls: tuple[str, ...] = field(default_factory=tuple)
     ignore_urls: tuple[str, ...] = field(default_factory=tuple)
     verify: bool | str = True
+    ignore_http_to_https_redirects: bool = False
 
 
 def load_config(
@@ -132,6 +138,11 @@ def load_config(
 
     verify: bool | str = _coerce_verify(_resolve('verify', True))
 
+    ignore_http_to_https_redirects = _coerce_bool(
+        _resolve('ignore_http_to_https_redirects', False),
+        'ignore_http_to_https_redirects',
+    )
+
     _validate(
         timeout=timeout,
         retries=retries,
@@ -157,6 +168,7 @@ def load_config(
         no_crawl_urls=no_crawl_urls,
         ignore_urls=ignore_urls,
         verify=verify,
+        ignore_http_to_https_redirects=ignore_http_to_https_redirects,
     )
 
 
@@ -223,6 +235,33 @@ def _coerce_verify(value: Any) -> bool | str:
             raise ValueError('verify must be true, false, or a CA-bundle path, got empty string')
         return value
     raise ValueError(f'verify must be true, false, or a CA-bundle path, got {value!r}')
+
+
+def _coerce_bool(value: Any, field_name: str) -> bool:
+    """Coerce *value* to a boolean.
+
+    Accepts Python booleans directly, and the strings ``'true'`` / ``'false'``
+    (case-insensitive).
+
+    Parameters:
+        value: Raw value from CLI or YAML.
+        field_name: Field name used in the error message.
+
+    Returns:
+        ``True`` or ``False``.
+
+    Raises:
+        ValueError: If *value* cannot be interpreted as a boolean.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.lower()
+        if low == 'true':
+            return True
+        if low == 'false':
+            return False
+    raise ValueError(f'{field_name} must be true or false, got {value!r}')
 
 
 def _coerce_url_list(value: Any, field_name: str) -> tuple[str, ...]:

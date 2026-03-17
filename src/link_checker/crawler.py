@@ -28,6 +28,7 @@ from link_checker.url_utils import (
     get_depth,
     get_file_extension,
     is_html_extension,
+    is_http_to_https_redirect,
     is_http_url,
     is_same_domain,
     normalize_internal_url,
@@ -514,13 +515,23 @@ class Crawler:
             final_canonical, _ = normalize_url(result.final_url)
             if url != final_canonical:
                 redirect_status = result.redirect_chain[0].status_code
-                logger.debug('Redirect %s → %s (%d)', url, result.final_url, redirect_status)
-                self._results.add_redirect(
-                    original_url=url,
-                    final_url=result.final_url,
-                    status_code=redirect_status,
-                    referrer=referrer,
-                )
+                if self._config.ignore_http_to_https_redirects and is_http_to_https_redirect(
+                    url, result.final_url
+                ):
+                    logger.debug(
+                        'Ignoring http→https redirect %s → %s (%d)',
+                        url,
+                        result.final_url,
+                        redirect_status,
+                    )
+                else:
+                    logger.debug('Redirect %s → %s (%d)', url, result.final_url, redirect_status)
+                    self._results.add_redirect(
+                        original_url=url,
+                        final_url=result.final_url,
+                        status_code=redirect_status,
+                        referrer=referrer,
+                    )
 
         if result.error:
             domain = urlparse(url).netloc

@@ -51,6 +51,11 @@ a non-zero exit code — they are informational only.
    different URLs are listed; same-URL redirects caused by URL normalization
    are suppressed.
 
+   When ``ignore_http_to_https_redirects`` is enabled, redirects where only
+   the scheme changes from ``http`` to ``https`` (same host, path, and query)
+   are also suppressed.  The section header will note
+   ``[http→https upgrades suppressed]`` when this option is active.
+
 Section 7: Misplaced Assets
 ----------------------------
 

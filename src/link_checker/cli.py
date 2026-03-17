@@ -108,6 +108,16 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        '--ignore-http-to-https-redirects',
+        default=None,
+        action='store_true',
+        dest='ignore_http_to_https_redirects',
+        help=(
+            'Suppress redirects where only the scheme changes from http to https '
+            '(same host, path, and query) from the Redirects section of the report.'
+        ),
+    )
+    parser.add_argument(
         '--config-file',
         default=None,
         metavar='PATH',

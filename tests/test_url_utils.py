@@ -9,6 +9,7 @@ from link_checker.url_utils import (
     get_depth,
     get_file_extension,
     is_html_extension,
+    is_http_to_https_redirect,
     is_http_url,
     is_same_domain,
     is_under_root,
@@ -517,3 +518,35 @@ def test_normalize_internal_url_index_html_with_fragment() -> None:
 )
 def test_is_under_root_parametrized(path: str, root: str, expected: bool) -> None:
     assert is_under_root(path, root) is expected
+
+
+# ---------------------------------------------------------------------------
+# is_http_to_https_redirect
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ('original', 'final', 'expected'),
+    [
+        # Pure scheme upgrade — should return True
+        ('http://example.com/path', 'https://example.com/path', True),
+        ('http://example.com/', 'https://example.com/', True),
+        ('http://example.com/a/b?q=1', 'https://example.com/a/b?q=1', True),
+        # Host case-insensitive
+        ('http://EXAMPLE.COM/path', 'https://example.com/path', True),
+        # Path differs — not a pure upgrade
+        ('http://example.com/old', 'https://example.com/new', False),
+        # Query differs
+        ('http://example.com/page?a=1', 'https://example.com/page?a=2', False),
+        # Host differs
+        ('http://example.com/path', 'https://other.com/path', False),
+        # Already https original — not an upgrade
+        ('https://example.com/path', 'https://example.com/path', False),
+        # https → http (downgrade) — not an upgrade
+        ('https://example.com/path', 'http://example.com/path', False),
+        # https → http with same path
+        ('https://example.com/', 'http://example.com/', False),
+    ],
+)
+def test_is_http_to_https_redirect(original: str, final: str, expected: bool) -> None:
+    assert is_http_to_https_redirect(original, final) is expected

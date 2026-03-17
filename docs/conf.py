@@ -89,6 +89,6 @@ myst_enable_extensions = [
 # part of the Sphinx source tree (e.g. CODE_OF_CONDUCT.md).
 suppress_warnings = ['myst.xref_missing']
 
-# Mermaid settings
-mermaid_output_format = 'svg'
-mermaid_d3_zoom = True
+# Mermaid settings — use client-side rendering so no mmdc binary is required
+# in CI or on ReadTheDocs.
+mermaid_output_format = 'raw'

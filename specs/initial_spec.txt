@@ -1,0 +1,86 @@
+Create an entire command line application from scratch.
+
+- Purpose: Website crawler, link checker, and contents analyzer
+- Language: Python
+- Name of command line program: link_checker
+- Lint rules: ruff check and ruff format
+- Type checking rules: mypy
+- Doc rules: Passes Sphinx build with no warnings
+- Packaging rules: Publish to PyPI on release
+- Python and testing best practices as written in .cursor/rules/python_best_practices.mdc
+- Use test-driven development, writing tests that fail (red), then code, then check that tests pass (green)
+- Documentation best practices as written in .cursor/rules/documentation.mdc
+- Template: Use existing directory structure and files, replacing only the minimum needed to update the files for the details of the new program
+
+Requirements:
+- Visit each URL at most once
+- Support both HTTPS: and HTTP: connections
+- Support multi-threaded operation with a specified number of threads with no race conditions
+- Support a YAML configuration file that specifies a variety of lists of URLs with special properties, discussed later
+- Collect statistics on the checking process, discussed later
+- Full test suite that can be run without access to real websites
+- Use standard Python logging package with multiple levels of information covering all operations
+- The crawl will never go "up" past the specified root URL
+- Never crawl a website with a different domain than that specified in the initial crawl root
+- Do check external links for existence
+- Full documentation including README.md (add to existing content, do not replace header); RST-style users guide in docs directory
+
+Command line options:
+--output or -o FILENAME: Specify output file for final results (default stdout)
+--log-file FILENAME: Write in-progress log messages to the given file (default stdout)
+--log-level LEVEL: Set the minimum level for log messages
+--timeout N: Timeout in seconds for HTTP requests (default 10)
+--max-requests N: Maximum number of actual URL query requests to make (default unlimited); can be used for debugging
+--max-depth N: Maximum directory depth to crawl from root (default unlimited)
+--max-threads N: Maximum number of concurrent threads for URL requests (default 10)
+--config-file FILENAME: Optional YAML file (.yaml or .yml) specifying details of the link check
+
+Simple example:
+link_check https://example.com
+
+Example checking a subsection of a website:
+link_check https://example.com/dir1/dir2/dir3
+The crawl will never go to any part of the website on the same host that is above dir3.
+
+Installation examples:
+
+For a user: pipx install rms-link-checker
+
+For a developer:
+git clone https://github.com/SETI/rms-link-checker
+cd rms-link-checker
+python3 -m venv venv
+source venv/bin/activate
+pip install -e .[dev]
+
+Config file:
+
+The configuration file has this basic format. Each group is optional.
+
+asset_urls:
+  - url1
+  - url2
+no_crawl_urls:
+  - url1
+  - url2
+ignore_urls:
+  - url1
+  - url2
+
+An "asset" is any file that has an extension other than .htm, .html, or .shtml. If asset_urls is present, then each reference to an asset file is checked against the asset urls. If the file is under one of the urls, it is ignored. If it is not under one of the urls, it is assumed to be out of place and is logged. Assets are categorized by type (image, document, infrastructure like js or css, and other).
+
+no_crawl_urls specifies urls such that any url under one of them is checked for being a broken link, but is not crawled further. For example if https://test.me/dir1 is listed, and there is a link to https://test.me/dir1/dir2/file2.html, then that URL is checked for existence but none of the links in it are followed further.
+
+ignore_urls specifies urls such that any url under one of them is ignored entirely and not even checked for being a broken link.
+
+It is possble for any of the urls specified in these sections to be under the main crawl root, parallel with the main crawl root, or external.
+
+
+Report format:
+
+- Configuration summary (root URL, URLs specified in config file by section)
+- Summary with counts (visited pages, broken links, number of misplaced assets, etc.)
+- Broken links found (grouped by page); if a given link occurs on multiple pages it is reported for each page
+- Misplaced internal assets (grouped by type and then by filename and then by page that referenced it)
+- URLs that were affected by no_crawl_urls (grouped by affected url and then list each page that referenced it)
+- URLs that were affected by ignore_urls (grouped by affected url and then list each page that reference it)

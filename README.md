@@ -1,3 +1,7 @@
+# rms-link-checker
+
+<!-- pyml disable MD025 -->
+
 [![GitHub release; latest by date](https://img.shields.io/github/v/release/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/releases)
 [![Test Status](https://img.shields.io/github/actions/workflow/status/SETI/rms-link-checker/run-tests.yml?branch=main)](https://github.com/SETI/rms-link-checker/actions)
@@ -21,150 +25,68 @@
 ![GitHub License](https://img.shields.io/github/license/SETI/rms-link-checker)
 [![Number of GitHub stars](https://img.shields.io/github/stars/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/stargazers)
 ![GitHub forks](https://img.shields.io/github/forks/SETI/rms-link-checker)
+<!-- start-after-point -->
 
-# Link Checker
+**rms-link-checker** is a Python command-line application that crawls a website
+starting from a given root URL, checks all discovered links for validity, detects
+misplaced asset files, and produces a plain-text report summarizing the results.
 
-A Python tool that checks websites for broken links and catalogs internal assets.
+Full documentation is available at
+[rms-link-checker.readthedocs.io](https://rms-link-checker.readthedocs.io/en/latest/).
 
-## Features
+# Features
 
-- Crawls websites starting from a root URL that respects URL hierarchy boundaries
-  (won't crawl "up" from the starting URL)
-- Detects broken internal links
-- Catalogs references to non-HTML assets (images, text files, etc.)
-- Only visits each page once
-- Checks external links but does not crawl them
-- Provides detailed logging
-- Allows specifying paths to exclude from internal asset reporting
-- Supports checking but not crawling specific website sections
+- Crawls an entire website starting from a single root URL
+- Checks all discovered links (internal and external) for validity
+- Detects broken links (4xx/5xx responses) and broken anchor fragments
+- Follows and reports redirect chains
+- Detects misplaced asset files (images, documents, scripts, etc.)
+- Configurable depth limit, request limit, and thread count
+- YAML configuration file support with CLI override precedence
+- Non-HTTP scheme links (mailto:, tel:, etc.) recorded and reported
+- SSL certificate errors reported per domain
+- Plain-text report with 11 sections
 
-## Installation
+# Installation
 
-```bash
-pip install rms-link-checker
-```
-
-Or from source:
-
-```bash
-git clone https://github.com/SETI/rms-link-checker.git
-cd rms-link-checker
-pip install -e .
-```
-
-You can also install using `pipx`, which allows you to install the software and its
-dependencies in isolation without needing to set up a virtual environment:
+## End-user (recommended)
 
 ```bash
 pipx install rms-link-checker
 ```
 
-## Usage
+## Developer
 
 ```bash
-link_checker https://example.com
+git clone https://github.com/SETI/rms-link-checker.git
+cd rms-link-checker
+python3 -m venv venv
+source venv/bin/activate
+pip install -e ".[dev]"
 ```
 
-### Options
+# Quick Start
 
-- `--verbose` or `-v`: Increase verbosity (can be used multiple times)
-- `--output` or `-o`: Specify output file for results (default: stdout)
-- `--log-file`: Write log messages to a file (in addition to console output)
-- `--log-level`: Set the minimum level for messages in the log file (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-- `--timeout`: Timeout in seconds for HTTP requests (default: 10.0)
-- `--max-requests`: Maximum number of requests to make (default: unlimited)
-- `--max-depth`: Maximum depth to crawl (default: unlimited)
-- `--max-threads`: Maximum number of concurrent threads for requests (default: 10)
-- `--ignore-asset-paths-file`: Specify a file containing paths to ignore when reporting internal assets (one per line)
-- `--ignore-internal-paths-file`: Specify a file containing paths to check once but not crawl (one per line)
-- `--ignore-external-links-file`: Specify a file containing external links to ignore in reporting (one per line)
-
-### Examples
-
-Simple check:
 ```bash
-link_checker https://example.com
+link_check https://example.com
 ```
 
-Check a specific section of a website (won't crawl to parent directories):
+With options:
+
 ```bash
-link_checker https://example.com/section/subsection
+link_check https://example.com --max-depth 3 --max-threads 20 -o report.txt
 ```
 
-Ignore specific asset paths:
+With a configuration file:
+
 ```bash
-# Create a file with paths to ignore
-echo "/images" > ignore_assets.txt
-echo "css" >> ignore_assets.txt      # Leading slash is optional
-echo "scripts" >> ignore_assets.txt
-
-link_checker https://example.com --ignore-asset-paths-file ignore_assets.txt
+link_check --config-file config.yaml
 ```
-
-Check but don't crawl specific sections:
-```bash
-# Create a file with paths to check but not crawl
-echo "docs" > ignore_crawl.txt       # Leading slash is optional
-echo "/blog" >> ignore_crawl.txt
-
-link_checker https://example.com --ignore-internal-paths-file ignore_crawl.txt
-```
-
-Verbose output with detailed logging:
-```bash
-link_checker https://example.com -vv
-```
-
-Verbose output with logs written to a file:
-```bash
-link_checker https://example.com -vv --log-file=link_checker.log
-```
-
-Verbose output with logs written to a file, but only warnings and errors:
-```bash
-link_checker https://example.com -vv --log-file=link_checker.log --log-level=WARNING
-```
-
-Limit crawl depth and set a longer timeout:
-```bash
-link_checker https://example.com --max-depth=3 --timeout=30.0
-```
-
-Limit the number of requests to avoid overwhelming the server:
-```bash
-link_checker https://example.com --max-requests=50
-```
-
-Control the number of concurrent threads for faster checking on a powerful system:
-```bash
-link_checker https://example.com --max-threads=20
-```
-
-Or reduce threads to be more gentle on the server:
-```bash
-link_checker https://example.com --max-threads=4
-```
-
-### Report Format
-
-The report includes:
-- Configuration summary (root URL, hierarchy boundary, and ignored paths)
-- Broken links found (grouped by page)
-- Internal assets (grouped by type)
-- Summary with counts (visited pages, broken links, assets)
-- Stats on ignored assets, limited-crawl sections, and URLs outside hierarchy
 
 # Contributing
 
 Information on contributing to this package can be found in the
 [Contributing Guide](https://github.com/SETI/rms-link-checker/blob/main/CONTRIBUTING.md).
-
-# Links
-
-- [Documentation](https://rms-link-checker.readthedocs.io)
-- [Repository](https://github.com/SETI/rms-link-checker)
-- [Issue tracker](https://github.com/SETI/rms-link-checker/issues)
-- [PyPi](https://pypi.org/project/rms-link-checker)
 
 # Licensing
 

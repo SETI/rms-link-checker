@@ -1,0 +1,350 @@
+"""Configuration dataclass and YAML loading for rms-link-checker."""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+_VALID_LOG_LEVELS: frozenset[str] = frozenset({'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'})
+
+_KNOWN_YAML_KEYS: frozenset[str] = frozenset(
+    {
+        'root_url',
+        'timeout',
+        'retries',
+        'max_requests',
+        'max_depth',
+        'max_threads',
+        'max_referencing_pages',
+        'log_level',
+        'output',
+        'log_file',
+        'asset_urls',
+        'no_crawl_urls',
+        'ignore_urls',
+        'verify',
+        'ignore_http_to_https_redirects',
+    }
+)
+
+
+@dataclass(frozen=True)
+class CrawlConfig:
+    """Immutable crawl configuration.
+
+    Attributes:
+        root_url: The root URL to begin crawling from.
+        timeout: Timeout in seconds for each HTTP request.
+        retries: Number of retry attempts for transient failures.
+        max_requests: Maximum total HTTP requests (None = unlimited).
+        max_depth: Maximum directory depth (None = unlimited).
+        max_threads: Maximum concurrent threads.
+        max_referencing_pages: Max referencing pages per URL in report.
+        log_level: Minimum log level string.
+        output: File path for report (None = stdout).
+        log_file: File path for log messages (None = stderr).
+        asset_urls: Expected URL prefixes for asset files.
+        no_crawl_urls: URL prefixes to check but not crawl.
+        ignore_urls: URL prefixes to skip entirely.
+        verify: TLS certificate verification.  ``True`` (default) uses the
+            system CA bundle; ``False`` disables verification (insecure);
+            a string is treated as a path to a CA-bundle file.
+        ignore_http_to_https_redirects: When ``True``, redirects where only
+            the scheme changes from ``http`` to ``https`` (same host, path,
+            and query) are silently dropped from the Redirects section of the
+            report.  Defaults to ``False``.
+    """
+
+    root_url: str
+    timeout: int = 10
+    retries: int = 3
+    max_requests: int | None = None
+    max_depth: int | None = None
+    max_threads: int = 10
+    max_referencing_pages: int = 10
+    log_level: str = 'INFO'
+    output: str | None = None
+    log_file: str | None = None
+    asset_urls: tuple[str, ...] = field(default_factory=tuple)
+    no_crawl_urls: tuple[str, ...] = field(default_factory=tuple)
+    ignore_urls: tuple[str, ...] = field(default_factory=tuple)
+    verify: bool | str = True
+    ignore_http_to_https_redirects: bool = False
+
+
+def load_config(
+    cli_namespace: argparse.Namespace,
+    *,
+    config_path: str | None = None,
+) -> CrawlConfig:
+    """Build a :class:`CrawlConfig` by merging a YAML file and CLI overrides.
+
+    Precedence (highest to lowest): CLI arguments > YAML file > defaults.
+
+    Parameters:
+        cli_namespace: Parsed argparse namespace. Fields set to ``None``
+            are treated as "not specified" and do not override YAML or defaults.
+        config_path: Path to a YAML configuration file. If ``None``, no file
+            is loaded. May also be read from ``cli_namespace.config_file``.
+
+    Returns:
+        A fully populated :class:`CrawlConfig` instance.
+
+    Raises:
+        ValueError: If required fields are missing, the config file cannot be
+            parsed, or any value fails validation.
+    """
+    effective_path = config_path or cli_namespace.config_file
+
+    yaml_data: dict[str, Any] = {}
+    if effective_path is not None:
+        yaml_data = _load_yaml_file(effective_path)
+
+    def _resolve(key: str, default: Any = None) -> Any:
+        cli_val = vars(cli_namespace).get(key)
+        if cli_val is not None:
+            return cli_val
+        return yaml_data.get(key, default)
+
+    root_url: str | None = _resolve('root_url')
+    if root_url is None or root_url.strip() == '':
+        raise ValueError(
+            'root_url is required: provide it as a positional argument or in the config file.'
+        )
+
+    timeout = _coerce_int(_resolve('timeout', 10), 'timeout')
+    retries = _coerce_int(_resolve('retries', 3), 'retries')
+    max_requests_raw = _resolve('max_requests')
+    max_requests = (
+        _coerce_int(max_requests_raw, 'max_requests') if max_requests_raw is not None else None
+    )
+    max_depth_raw = _resolve('max_depth')
+    max_depth = _coerce_int(max_depth_raw, 'max_depth') if max_depth_raw is not None else None
+    max_threads = _coerce_int(_resolve('max_threads', 10), 'max_threads')
+    max_referencing_pages = _coerce_int(
+        _resolve('max_referencing_pages', 10), 'max_referencing_pages'
+    )
+    log_level = str(_resolve('log_level', 'INFO')).upper()
+    output = _resolve('output')
+    log_file = _resolve('log_file')
+
+    asset_urls = _coerce_url_list(yaml_data.get('asset_urls'), 'asset_urls')
+    no_crawl_urls = _coerce_url_list(yaml_data.get('no_crawl_urls'), 'no_crawl_urls')
+    ignore_urls = _coerce_url_list(yaml_data.get('ignore_urls'), 'ignore_urls')
+
+    verify: bool | str = _coerce_verify(_resolve('verify', True))
+
+    ignore_http_to_https_redirects = _coerce_bool(
+        _resolve('ignore_http_to_https_redirects', False),
+        'ignore_http_to_https_redirects',
+    )
+
+    _validate(
+        timeout=timeout,
+        retries=retries,
+        max_requests=max_requests,
+        max_depth=max_depth,
+        max_threads=max_threads,
+        max_referencing_pages=max_referencing_pages,
+        log_level=log_level,
+    )
+
+    return CrawlConfig(
+        root_url=root_url,
+        timeout=timeout,
+        retries=retries,
+        max_requests=max_requests,
+        max_depth=max_depth,
+        max_threads=max_threads,
+        max_referencing_pages=max_referencing_pages,
+        log_level=log_level,
+        output=output,
+        log_file=log_file,
+        asset_urls=asset_urls,
+        no_crawl_urls=no_crawl_urls,
+        ignore_urls=ignore_urls,
+        verify=verify,
+        ignore_http_to_https_redirects=ignore_http_to_https_redirects,
+    )
+
+
+def _load_yaml_file(path: str) -> dict[str, Any]:
+    """Load and parse a YAML config file.
+
+    Parameters:
+        path: Filesystem path to the YAML file.
+
+    Returns:
+        Parsed YAML contents as a dict (empty dict for empty files).
+
+    Raises:
+        ValueError: If the file does not exist or cannot be parsed.
+    """
+    p = Path(path)
+    if not p.exists():
+        raise ValueError(f'Config file not found: {path!r}')
+
+    try:
+        content = p.read_text(encoding='utf-8')
+        data = yaml.safe_load(content)
+    except yaml.YAMLError as exc:
+        raise ValueError(f'Invalid YAML in config file {path!r}: {exc}') from exc
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError(f'Config file {path!r} must contain a YAML mapping, got {type(data)}')
+
+    unknown = sorted(set(data.keys()) - _KNOWN_YAML_KEYS)
+    if unknown:
+        raise ValueError(
+            f'Unknown key(s) in config file {path!r}: {", ".join(unknown)}. '
+            f'Valid keys are: {", ".join(sorted(_KNOWN_YAML_KEYS))}'
+        )
+
+    return data
+
+
+def _coerce_verify(value: Any) -> bool | str:
+    """Coerce *value* to a TLS verification setting.
+
+    Parameters:
+        value: Raw value from CLI or YAML.  Accepts ``True``/``False`` (bool),
+            ``'true'``/``'false'`` (case-insensitive strings), or a non-empty
+            string path to a CA-bundle file.
+
+    Returns:
+        ``True``, ``False``, or a CA-bundle path string.
+
+    Raises:
+        ValueError: If *value* is not a bool or a non-empty string.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.lower()
+        if low == 'true':
+            return True
+        if low == 'false':
+            return False
+        if value.strip() == '':
+            raise ValueError('verify must be true, false, or a CA-bundle path, got empty string')
+        return value
+    raise ValueError(f'verify must be true, false, or a CA-bundle path, got {value!r}')
+
+
+def _coerce_bool(value: Any, field_name: str) -> bool:
+    """Coerce *value* to a boolean.
+
+    Accepts Python booleans directly, and the strings ``'true'`` / ``'false'``
+    (case-insensitive).
+
+    Parameters:
+        value: Raw value from CLI or YAML.
+        field_name: Field name used in the error message.
+
+    Returns:
+        ``True`` or ``False``.
+
+    Raises:
+        ValueError: If *value* cannot be interpreted as a boolean.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.lower()
+        if low == 'true':
+            return True
+        if low == 'false':
+            return False
+    raise ValueError(f'{field_name} must be true or false, got {value!r}')
+
+
+def _coerce_url_list(value: Any, field_name: str) -> tuple[str, ...]:
+    """Coerce a YAML value to a tuple of strings, or raise on bad input.
+
+    Parameters:
+        value: Raw value from YAML (expected to be a list or absent/None).
+        field_name: Field name used in the error message.
+
+    Returns:
+        Tuple of strings (empty if *value* is None).
+
+    Raises:
+        ValueError: If *value* is present but not a list.
+    """
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError(
+            f'{field_name} must be a list in the config file, got {type(value).__name__!r}'
+        )
+    for i, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(
+                f'{field_name}[{i}] must be a string, got {type(item).__name__!r}: {item!r}'
+            )
+    return tuple(value)
+
+
+def _coerce_int(value: Any, field_name: str) -> int:
+    """Coerce *value* to int, raising :exc:`ValueError` with a clear message on failure.
+
+    Parameters:
+        value: The raw value to coerce.
+        field_name: The field name, used in the error message.
+
+    Returns:
+        Integer representation of *value*.
+
+    Raises:
+        ValueError: If *value* cannot be converted to an integer.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f'{field_name} must be an integer, got {value!r}') from None
+
+
+def _validate(
+    *,
+    timeout: int,
+    retries: int,
+    max_requests: int | None,
+    max_depth: int | None,
+    max_threads: int,
+    max_referencing_pages: int,
+    log_level: str,
+) -> None:
+    """Validate config values, raising ValueError on failure.
+
+    Parameters:
+        timeout: Request timeout in seconds (must be > 0).
+        retries: Retry count (must be >= 0).
+        max_requests: Maximum HTTP requests (must be > 0 if set).
+        max_depth: Maximum crawl depth (must be >= 0 if set).
+        max_threads: Thread pool size (must be >= 1).
+        max_referencing_pages: Max referencing pages in report (must be >= 1).
+        log_level: Log level string (must be one of the standard levels).
+
+    Raises:
+        ValueError: If any value is invalid.
+    """
+    if timeout <= 0:
+        raise ValueError(f'timeout must be > 0, got {timeout}')
+    if retries < 0:
+        raise ValueError(f'retries must be >= 0, got {retries}')
+    if max_requests is not None and max_requests <= 0:
+        raise ValueError(f'max_requests must be > 0, got {max_requests}')
+    if max_depth is not None and max_depth < 0:
+        raise ValueError(f'max_depth must be >= 0, got {max_depth}')
+    if max_threads < 1:
+        raise ValueError(f'max_threads must be >= 1, got {max_threads}')
+    if max_referencing_pages < 1:
+        raise ValueError(f'max_referencing_pages must be >= 1, got {max_referencing_pages}')
+    if log_level not in _VALID_LOG_LEVELS:
+        raise ValueError(f'log_level must be one of {sorted(_VALID_LOG_LEVELS)}, got {log_level!r}')

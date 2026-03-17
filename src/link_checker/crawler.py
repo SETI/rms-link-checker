@@ -101,6 +101,7 @@ class Crawler:
             timeout=config.timeout,
             retries=config.retries,
             user_agent=f'rms-link-checker/{version}',
+            verify=config.verify,
             sleep=_sleep,
         )
 

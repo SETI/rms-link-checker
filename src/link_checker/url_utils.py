@@ -89,6 +89,10 @@ def add_trailing_slash(url: str) -> str:
     - ``/cassini/`` → ``/cassini/`` (unchanged)
     - ``/cassini/page.html`` → ``/cassini/page.html`` (has extension, unchanged)
     - ``/data.csv`` → ``/data.csv`` (has extension, unchanged)
+    - ``/path/.htaccess`` → ``/path/.htaccess`` (dotfile, treated as a file)
+
+    Leading-dot filenames (e.g. ``.htaccess``, ``.gitignore``) are considered
+    files and do **not** receive a trailing slash.
 
     Apply after :func:`normalize_url` so that index-file stripping has
     already run (``/cassini/index.html`` → ``/cassini/`` → unchanged here).
@@ -104,7 +108,7 @@ def add_trailing_slash(url: str) -> str:
     if not path.endswith('/'):
         last_segment = path.rsplit('/', 1)[-1]
         dot_idx = last_segment.rfind('.')
-        if dot_idx <= 0:
+        if dot_idx < 0:
             path = path + '/'
             url = urlunparse((parsed.scheme, parsed.netloc, path, parsed.params, parsed.query, ''))
     return url

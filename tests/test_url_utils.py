@@ -446,6 +446,11 @@ def test_add_trailing_slash_bare_host_gets_slash() -> None:
     assert add_trailing_slash('https://x.com') == 'https://x.com/'
 
 
+def test_add_trailing_slash_dotfile_unchanged() -> None:
+    """Leading-dot filenames are treated as files and must not gain a trailing slash."""
+    assert add_trailing_slash('https://x.com/path/.htaccess') == 'https://x.com/path/.htaccess'
+
+
 # ---------------------------------------------------------------------------
 # normalize_internal_url: all three variants map to the same canonical
 # ---------------------------------------------------------------------------

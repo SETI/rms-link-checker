@@ -26,6 +26,7 @@ _KNOWN_YAML_KEYS: frozenset[str] = frozenset(
         'asset_urls',
         'no_crawl_urls',
         'ignore_urls',
+        'verify',
     }
 )
 
@@ -48,6 +49,9 @@ class CrawlConfig:
         asset_urls: Expected URL prefixes for asset files.
         no_crawl_urls: URL prefixes to check but not crawl.
         ignore_urls: URL prefixes to skip entirely.
+        verify: TLS certificate verification.  ``True`` (default) uses the
+            system CA bundle; ``False`` disables verification (insecure);
+            a string is treated as a path to a CA-bundle file.
     """
 
     root_url: str
@@ -63,6 +67,7 @@ class CrawlConfig:
     asset_urls: tuple[str, ...] = field(default_factory=tuple)
     no_crawl_urls: tuple[str, ...] = field(default_factory=tuple)
     ignore_urls: tuple[str, ...] = field(default_factory=tuple)
+    verify: bool | str = True
 
 
 def load_config(
@@ -125,6 +130,8 @@ def load_config(
     no_crawl_urls = _coerce_url_list(yaml_data.get('no_crawl_urls'), 'no_crawl_urls')
     ignore_urls = _coerce_url_list(yaml_data.get('ignore_urls'), 'ignore_urls')
 
+    verify: bool | str = _coerce_verify(_resolve('verify', True))
+
     _validate(
         timeout=timeout,
         retries=retries,
@@ -149,6 +156,7 @@ def load_config(
         asset_urls=asset_urls,
         no_crawl_urls=no_crawl_urls,
         ignore_urls=ignore_urls,
+        verify=verify,
     )
 
 
@@ -189,6 +197,34 @@ def _load_yaml_file(path: str) -> dict[str, Any]:
     return data
 
 
+def _coerce_verify(value: Any) -> bool | str:
+    """Coerce *value* to a TLS verification setting.
+
+    Parameters:
+        value: Raw value from CLI or YAML.  Accepts ``True``/``False`` (bool),
+            ``'true'``/``'false'`` (case-insensitive strings), or a non-empty
+            string path to a CA-bundle file.
+
+    Returns:
+        ``True``, ``False``, or a CA-bundle path string.
+
+    Raises:
+        ValueError: If *value* is not a bool or a non-empty string.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.lower()
+        if low == 'true':
+            return True
+        if low == 'false':
+            return False
+        if value.strip() == '':
+            raise ValueError('verify must be true, false, or a CA-bundle path, got empty string')
+        return value
+    raise ValueError(f'verify must be true, false, or a CA-bundle path, got {value!r}')
+
+
 def _coerce_url_list(value: Any, field_name: str) -> tuple[str, ...]:
     """Coerce a YAML value to a tuple of strings, or raise on bad input.
 
@@ -208,7 +244,12 @@ def _coerce_url_list(value: Any, field_name: str) -> tuple[str, ...]:
         raise ValueError(
             f'{field_name} must be a list in the config file, got {type(value).__name__!r}'
         )
-    return tuple(str(item) for item in value)
+    for i, item in enumerate(value):
+        if not isinstance(item, str):
+            raise ValueError(
+                f'{field_name}[{i}] must be a string, got {type(item).__name__!r}: {item!r}'
+            )
+    return tuple(value)
 
 
 def _coerce_int(value: Any, field_name: str) -> int:

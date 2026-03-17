@@ -371,3 +371,74 @@ def test_crawl_config_is_frozen() -> None:
     cfg = CrawlConfig(root_url='https://example.com')
     with pytest.raises(dataclasses.FrozenInstanceError):
         cfg.timeout = 99  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# verify field: default, YAML, CLI, _coerce_verify
+# ---------------------------------------------------------------------------
+
+
+def test_default_verify_is_true() -> None:
+    ns = _minimal_namespace(root_url='https://example.com')
+    cfg = load_config(ns)
+    assert cfg.verify is True
+
+
+def test_verify_false_from_cli() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', verify='false')
+    cfg = load_config(ns)
+    assert cfg.verify is False
+
+
+def test_verify_true_from_cli_string() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', verify='true')
+    cfg = load_config(ns)
+    assert cfg.verify is True
+
+
+def test_verify_ca_bundle_path_from_cli() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', verify='/etc/ssl/certs/ca.pem')
+    cfg = load_config(ns)
+    assert cfg.verify == '/etc/ssl/certs/ca.pem'
+
+
+def test_verify_from_yaml(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text('root_url: "https://example.com"\nverify: false\n')
+    ns = _minimal_namespace()
+    cfg = load_config(ns, config_path=str(yaml_file))
+    assert cfg.verify is False
+
+
+def test_verify_ca_bundle_from_yaml(tmp_path: Path) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text('root_url: "https://example.com"\nverify: "/path/to/ca.pem"\n')
+    ns = _minimal_namespace()
+    cfg = load_config(ns, config_path=str(yaml_file))
+    assert cfg.verify == '/path/to/ca.pem'
+
+
+def test_verify_invalid_type_raises() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', verify=42)
+    with pytest.raises(ValueError, match='verify must be true, false, or a CA-bundle path'):
+        load_config(ns)
+
+
+def test_verify_empty_string_raises() -> None:
+    ns = _minimal_namespace(root_url='https://example.com', verify='')
+    with pytest.raises(ValueError, match='verify must be true, false, or a CA-bundle path'):
+        load_config(ns)
+
+
+# ---------------------------------------------------------------------------
+# _coerce_url_list: non-string item rejection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize('field', ['asset_urls', 'no_crawl_urls', 'ignore_urls'])
+def test_url_list_non_string_item_raises(tmp_path: Path, field: str) -> None:
+    yaml_file = tmp_path / 'cfg.yaml'
+    yaml_file.write_text(f'root_url: "https://example.com"\n{field}:\n  - "ok"\n  - 42\n')
+    ns = _minimal_namespace()
+    with pytest.raises(ValueError, match=rf'{field}\[1\] must be a string'):
+        load_config(ns, config_path=str(yaml_file))

@@ -98,6 +98,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help='Maximum referencing pages listed per URL in report (default: 10).',
     )
     parser.add_argument(
+        '--verify',
+        default=None,
+        metavar='BOOL_OR_PATH',
+        help=(
+            'TLS certificate verification. '
+            'Pass "false" to disable (insecure, e.g. for self-signed certs), '
+            '"true" to enable (default), or a path to a CA-bundle file.'
+        ),
+    )
+    parser.add_argument(
         '--config-file',
         default=None,
         metavar='PATH',

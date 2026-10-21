@@ -1,7 +1,6 @@
 # rms-link-checker
 
 <!-- pyml disable MD025 -->
-
 [![GitHub release; latest by date](https://img.shields.io/github/v/release/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/releases)
 [![GitHub Release Date](https://img.shields.io/github/release-date/SETI/rms-link-checker)](https://github.com/SETI/rms-link-checker/releases)
 [![Test Status](https://img.shields.io/github/actions/workflow/status/SETI/rms-link-checker/run-tests.yml?branch=main)](https://github.com/SETI/rms-link-checker/actions)

@@ -11,7 +11,7 @@ files, and produces a plain-text report summarizing the results.
 | Repository name      | `rms-link-checker`                           |
 | PyPI package name    | `rms-link-checker`                           |
 | CLI command name     | `link_check`                                 |
-| Language             | Python ≥ 3.10                                |
+| Language             | Python ≥ 3.11                                |
 | License              | (inherit from existing repo)                 |
 
 ## 2. Installation
@@ -994,7 +994,7 @@ structure and details.
 
 - **`run-tests.yml`**: Runs on push to `main`, PRs to `main`, weekly schedule, and
   manual dispatch. Lint job (ruff check, ruff format --check, mypy, Sphinx build,
-  PyMarkdown scan). Test job (pytest with coverage, matrix across Python 3.10–3.13 on
+  PyMarkdown scan). Test job (pytest with coverage, matrix across Python 3.11–3.15 on
   Ubuntu, codecov upload).
 - **`publish_to_pypi.yml`**: Triggered by GitHub Release. Builds and publishes to PyPI.
 - **`publish_to_test_pypi.yml`**: Manual dispatch. Builds and publishes to Test PyPI.

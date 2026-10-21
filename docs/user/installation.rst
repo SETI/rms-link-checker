@@ -20,7 +20,7 @@ You can also install with ``pip``:
 Supported Python Versions
 --------------------------
 
-``rms-link-checker`` requires **Python 3.10 or later**.
+``rms-link-checker`` requires **Python 3.11 or later**.
 
 Verifying the Installation
 ---------------------------

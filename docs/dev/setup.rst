@@ -4,7 +4,7 @@ Developer Setup
 Prerequisites
 -------------
 
-- Python 3.10 or later
+- Python 3.11 or later
 - git
 
 Clone and Install
